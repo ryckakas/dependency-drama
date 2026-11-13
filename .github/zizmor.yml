@@ -33,3 +33,7 @@ rules:
   use-trusted-publishing:
     ignore:
       - release.yml:350:13
+  # drama.yml runs the action from its own checkout with `./`, which is the point of that workflow.
+  self-repository:
+    ignore:
+      - drama.yml:38:15

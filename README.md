@@ -34,6 +34,51 @@ dependency-drama --offline    # ask the npm registry nothing
 dependency-drama --base ../before  # also tell what changed since that state
 ```
 
+## GitHub Action
+
+The action writes the episode to the job summary of every run. On a pull request that changes
+`package-lock.json` it also posts the episode as one comment, including what the pull request did,
+and updates that comment on later pushes. It needs the first release, which is not out yet.
+
+```yaml
+on: pull_request
+
+permissions:
+  contents: read
+  pull-requests: write # for the comment; without it only the job summary is written
+
+jobs:
+  drama:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ryckakas/dependency-drama@v0.1.0
+```
+
+| Input | Default | |
+|---|---|---|
+| `path` | `.` | The directory that holds `package-lock.json` |
+| `version` | `latest` | The release to install |
+| `comment` | `true` | `false` keeps it to the job summary |
+| `offline` | `false` | `true` asks the npm registry nothing |
+
+A pull request from a fork gets a read-only token, so it gets the job summary and no comment.
+
+### Monorepos
+
+npm workspaces share one lockfile at the root, and the dependencies of every workspace member are
+read from it: one step, default `path`. Projects with their own lockfile in separate directories
+get one step each, and one comment each:
+
+```yaml
+      - uses: ryckakas/dependency-drama@v0.1.0
+        with:
+          path: frontend
+      - uses: ryckakas/dependency-drama@v0.1.0
+        with:
+          path: admin
+```
+
 ## What it looks for
 
 | Scene | The fact behind it |
