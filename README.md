@@ -145,6 +145,7 @@ The jokes live in plain text files under [`src/lines`](src/lines), one line per 
 - Keep it deadpan and safe to paste into a work chat.
 
 A test fails if a line uses a placeholder its scene does not provide.
+[CONTRIBUTING.md](CONTRIBUTING.md) lists the placeholders of every scene.
 
 [`celebrities.txt`](src/lines/celebrities.txt) holds lines for packages most developers know by
 name (`package | scene | line`). They replace the general lines when a scene is about that
