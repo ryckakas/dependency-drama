@@ -7,7 +7,7 @@ use nodejs_semver::{Range, Version};
 use serde::Deserialize;
 
 use crate::lockfile::{self, ReadError};
-use crate::model::{Package, Peer, Project, Source};
+use crate::model::{Members, Package, Peer, Project, Source};
 
 pub(crate) const LOCKFILE: &str = "package-lock.json";
 const PUBLIC_REGISTRY: &str = "https://registry.npmjs.org/";
@@ -79,7 +79,12 @@ pub(crate) fn read(path: &Path) -> Result<Project, ReadError> {
         .iter()
         .filter_map(|(path, entry)| package(&entries, &direct, path, entry))
         .collect();
-    Ok(Project { name, packages })
+    let members = members(&entries);
+    Ok(Project {
+        name,
+        packages,
+        members,
+    })
 }
 
 /// Where the dependencies declared by the root and by every workspace member are installed. In a
@@ -92,6 +97,32 @@ fn direct_paths(entries: &BTreeMap<String, Entry>) -> BTreeSet<String> {
             declared(manifest).map(move |name| installed_path(entries, folder, name))
         })
         .collect()
+}
+
+/// The root is the folder `""` in the lockfile and `.` in the model, as pnpm writes it.
+fn members(entries: &BTreeMap<String, Entry>) -> Members {
+    entries
+        .iter()
+        .filter(|(folder, _)| !folder.contains(NODE_MODULES))
+        .map(|(folder, manifest)| {
+            let dependencies = declared(manifest)
+                .filter_map(|name| resolved(entries, folder, name))
+                .collect();
+            let member = if folder.is_empty() { "." } else { folder };
+            (member.to_owned(), dependencies)
+        })
+        .collect()
+}
+
+/// The version a member's dependency resolved to. A link to another member has none.
+fn resolved(
+    entries: &BTreeMap<String, Entry>,
+    folder: &str,
+    name: &str,
+) -> Option<(String, String)> {
+    let entry = entries.get(&installed_path(entries, folder, name))?;
+    let version = entry.version.clone().filter(|_| !entry.link)?;
+    Some((name.to_owned(), version))
 }
 
 fn declared(manifest: &Entry) -> impl Iterator<Item = &str> {
@@ -380,6 +411,10 @@ mod tests {
             ]
         );
         assert_eq!(project.packages.len(), 5);
+        assert_eq!(
+            format!("{:?}", project.members),
+            r#"{".": {"typescript": "5.6.3"}, "packages/api": {"lodash": "4.17.21"}, "packages/ui": {"lodash": "3.10.1", "react": "18.3.1"}}"#
+        );
     }
 
     #[test]

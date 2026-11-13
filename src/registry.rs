@@ -174,6 +174,7 @@ mod tests {
         Project {
             name: "shop-web".to_owned(),
             packages,
+            members: crate::model::Members::new(),
         }
     }
 

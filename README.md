@@ -88,7 +88,9 @@ A pull request from a fork gets a read-only token, so it gets the job summary an
 ### Monorepos
 
 npm and pnpm workspaces share one lockfile at the root, and the dependencies of every workspace
-member are read from it: one step, default `path`. Projects with their own lockfile in separate directories
+member are read from it: one step, default `path`. Tonight compares each member with its own
+earlier state, so a major upgrade in some members says how many of those using the package moved.
+Projects with their own lockfile in separate directories
 get one step each, and one comment each:
 
 ```yaml

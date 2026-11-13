@@ -92,11 +92,16 @@ fn pick(lines: &[&'static str], seed: u64, fresh: impl Fn(&str) -> bool) -> &'st
 }
 
 fn fill(line: &str, plot: &Plot) -> String {
-    plot.values()
+    let text = plot
+        .values()
         .into_iter()
         .fold(line.to_owned(), |text, (name, value)| {
             text.replace(&format!("{{{name}}}"), &tidy(&value))
-        })
+        });
+    match plot.aside() {
+        Some(aside) => format!("{text} {aside}"),
+        None => text,
+    }
 }
 
 /// Names and messages are written by strangers: no line break or terminal escape code in one may

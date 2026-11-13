@@ -11,7 +11,7 @@ use serde::Deserialize;
 use serde::de::IgnoredAny;
 
 use crate::lockfile::{self, ReadError};
-use crate::model::{Package, Peer, Project, Source};
+use crate::model::{Members, Package, Peer, Project, Source};
 use crate::npm;
 use crate::npmrc::Registries;
 
@@ -76,7 +76,8 @@ pub(crate) fn read(file: &Path, registries: &Registries) -> Result<Project, Read
     }
     let lockfile: Lockfile = serde_saphyr::from_str(&text)
         .map_err(|error| ReadError::Malformed(file.to_path_buf(), error.to_string()))?;
-    let direct = direct(&lockfile);
+    let members = members(&lockfile);
+    let direct = direct(&members);
     let packages = lockfile
         .packages
         .iter()
@@ -87,6 +88,7 @@ pub(crate) fn read(file: &Path, registries: &Registries) -> Result<Project, Read
             .or_else(|| lockfile::directory_name(file))
             .unwrap_or_else(|| "this project".to_owned()),
         packages,
+        members,
     })
 }
 
@@ -106,22 +108,33 @@ fn lockfile_version(text: &str) -> &str {
         .map_or("", |version| version.trim().trim_matches(['\'', '"']))
 }
 
-/// The `name@version` keys every workspace member asks for. A link to another member is not a
-/// package.
-fn direct(lockfile: &Lockfile) -> BTreeSet<String> {
+/// A link to another member is not a package.
+fn members(lockfile: &Lockfile) -> Members {
     lockfile
         .importers
-        .values()
-        .flat_map(|importer| {
-            [
+        .iter()
+        .map(|(folder, importer)| {
+            let dependencies = [
                 &importer.dependencies,
                 &importer.dev_dependencies,
                 &importer.optional_dependencies,
             ]
+            .into_iter()
+            .flatten()
+            .filter(|(_, requested)| !requested.version.starts_with("link:"))
+            .map(|(name, requested)| (name.clone(), without_peers(&requested.version).to_owned()))
+            .collect();
+            (folder.clone(), dependencies)
         })
+        .collect()
+}
+
+/// The `name@version` keys every workspace member asks for.
+fn direct(members: &Members) -> BTreeSet<String> {
+    members
+        .values()
         .flatten()
-        .filter(|(_, requested)| !requested.version.starts_with("link:"))
-        .map(|(name, requested)| format!("{name}@{}", without_peers(&requested.version)))
+        .map(|(name, version)| format!("{name}@{version}"))
         .collect()
 }
 
@@ -328,6 +341,10 @@ snapshots:
                 "typescript 5.6.3 direct",
                 "widget 1.0.0 direct",
             ]
+        );
+        assert_eq!(
+            format!("{:?}", project.members),
+            r#"{".": {"typescript": "5.6.3"}, "packages/api": {"lodash": "4.17.21"}, "packages/ui": {"@scope/kit": "2.0.0", "fsevents": "2.3.3", "lodash": "3.10.1", "react": "18.3.1", "widget": "1.0.0"}}"#
         );
     }
 
