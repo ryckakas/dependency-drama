@@ -76,10 +76,10 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false # the action never uses git credentials
-      - uses: ryckakas/dependency-drama@v0.1.0 # or pin the release's full commit SHA
+      - uses: ryckakas/dependency-drama@v0.1.1 # or pin the release's full commit SHA
 ```
 
-A tag can be moved; a commit SHA cannot. To pin, replace `v0.1.0` with the 40-character commit
+A tag can be moved; a commit SHA cannot. To pin, replace `v0.1.1` with the 40-character commit
 the release tag points at and keep the version in a comment, which Dependabot then updates too.
 
 | Input | Default | |
@@ -99,10 +99,10 @@ earlier state, so a major upgrade in some members says how many of those using t
 Projects with their own lockfile in separate directories get one step each, and one comment each:
 
 ```yaml
-      - uses: ryckakas/dependency-drama@v0.1.0
+      - uses: ryckakas/dependency-drama@v0.1.1
         with:
           path: frontend
-      - uses: ryckakas/dependency-drama@v0.1.0
+      - uses: ryckakas/dependency-drama@v0.1.1
         with:
           path: admin
 ```
@@ -121,7 +121,7 @@ repository can check out just those:
             /pnpm-workspace.yaml
             /.npmrc
           sparse-checkout-cone-mode: false
-      - uses: ryckakas/dependency-drama@v0.1.0
+      - uses: ryckakas/dependency-drama@v0.1.1
 ```
 
 For a project in a subdirectory, list its files under that directory, and keep `package.json`:
