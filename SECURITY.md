@@ -13,7 +13,7 @@ Please don't open a public issue, pull request or discussion for it.
 
 A useful report says which version and install source you used (npm, Homebrew, Cargo, the
 installer script or the GitHub Action), what you ran, and the input that triggers it. A minimal
-`package-lock.json` that reproduces the problem is the most helpful thing you can attach.
+`package-lock.json` or `pnpm-lock.yaml` that reproduces the problem is the most helpful thing you can attach.
 
 The report stays private while it is investigated and fixed. Once a fixed release is out, the
 advisory is published with credit to you, unless you'd rather not be named.

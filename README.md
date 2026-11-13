@@ -16,7 +16,8 @@ It is a toy. It is also, by accident, a readable summary of what is rotting in y
 
 ## Status
 
-Early. It reads npm's `package-lock.json` (npm 7 or newer) and prints an episode. There are no
+Early. It reads npm's `package-lock.json` (npm 7 or newer) and pnpm's `pnpm-lock.yaml` (pnpm 9
+or newer) and prints an episode. There are no
 released binaries yet, so it is built from source with a current Rust toolchain:
 
 ```bash
@@ -27,7 +28,7 @@ cargo install --git https://github.com/ryckakas/dependency-drama
 
 ```bash
 dependency-drama              # the project in the current directory
-dependency-drama path/to/app  # another project, or a package-lock.json
+dependency-drama path/to/app  # another project, or its lockfile
 dependency-drama --markdown   # Markdown, for a pull request comment
 dependency-drama --json       # JSON, for a tool that writes its own comment
 dependency-drama --offline    # ask the npm registry nothing
@@ -37,7 +38,7 @@ dependency-drama --base ../before  # also tell what changed since that state
 ## GitHub Action
 
 The action writes the episode to the job summary of every run. On a pull request that changes
-`package-lock.json` it also posts the episode as one comment, including what the pull request did,
+the lockfile it also posts the episode as one comment, including what the pull request did,
 and updates that comment on later pushes. It needs the first release, which is not out yet.
 
 ```yaml
@@ -52,12 +53,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: ryckakas/dependency-drama@v0.1.0
+      - uses: ryckakas/dependency-drama@v0.1.0 # or pin the release's full commit SHA
 ```
+
+A tag can be moved; a commit SHA cannot. To pin, replace `v0.1.0` with the 40-character commit
+the release tag points at and keep the version in a comment, which Dependabot then updates too.
 
 | Input | Default | |
 |---|---|---|
-| `path` | `.` | The directory that holds `package-lock.json` |
+| `path` | `.` | The directory that holds `package-lock.json` or `pnpm-lock.yaml` |
 | `version` | `latest` | The release to install |
 | `comment` | `true` | `false` keeps it to the job summary |
 | `offline` | `false` | `true` asks the npm registry nothing |
@@ -66,8 +70,8 @@ A pull request from a fork gets a read-only token, so it gets the job summary an
 
 ### Monorepos
 
-npm workspaces share one lockfile at the root, and the dependencies of every workspace member are
-read from it: one step, default `path`. Projects with their own lockfile in separate directories
+npm and pnpm workspaces share one lockfile at the root, and the dependencies of every workspace
+member are read from it: one step, default `path`. Projects with their own lockfile in separate directories
 get one step each, and one comment each:
 
 ```yaml
@@ -93,7 +97,7 @@ get one step each, and one comment each:
 | Collection plate | Packages asking for funding (`npm fund`) |
 | Night visitor | Packages that run a script on install |
 
-With `--base`, pointing at the same project before a change (a directory or a `package-lock.json`),
+With `--base`, pointing at the same project before a change (a directory or its lockfile),
 up to three more scenes follow under "Tonight":
 
 | Scene | The fact behind it |
@@ -129,12 +133,35 @@ same line escaped, safe to paste into a comment. The values in `facts` come stra
 lockfile and the registry and are **not** escaped. `schema` goes up when a field is removed or
 changes meaning; new fields and kinds may appear without it.
 
+## npm and pnpm
+
+Both are read into the same list of packages, so the scenes and the lines are the same. Two
+differences:
+
+- `pnpm-lock.yaml` does not record funding requests or install scripts, so a pnpm project never
+  gets the collection plate or the night visitor.
+- In a directory that has both lockfiles, `package-lock.json` is read. Name the other file to
+  choose it: `dependency-drama pnpm-lock.yaml`.
+
+Lockfiles from npm 6 or older and from pnpm 8 or older get a one-line message and exit code 0.
+
 ## What leaves your machine
 
 To learn how far behind a dependency is, the tool asks `registry.npmjs.org` about each **direct**
 dependency that was installed from `registry.npmjs.org`: one request per package, containing the
-package name. Packages from a private registry, a git URL or a local path are never looked up, and
-nothing else is sent. `--offline` sends nothing at all, and the two registry scenes are left out.
+package name. Nothing else is sent. `--offline` sends nothing at all, and the two registry scenes
+are left out.
+
+A package from a private registry, a git URL or a local path is never looked up. How that is known
+depends on the lockfile:
+
+- **npm** records the URL every package was downloaded from, so the lockfile decides.
+- **pnpm** does not record which registry a package came from. The tool reads the registry
+  settings pnpm itself would use: `.npmrc` and `pnpm-workspace.yaml` beside the lockfile, your own
+  `~/.npmrc`, the file `NPM_CONFIG_USERCONFIG` names, and `npm_config_*` environment variables. A
+  scope pointed at another registry is never looked up, and if the default registry is not
+  `registry.npmjs.org`, no unscoped name is. A registry configured somewhere else (a global
+  `npmrc`, pnpm's own global config) is not seen: use `--offline` there.
 
 ## Writing lines
 

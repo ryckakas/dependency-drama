@@ -38,3 +38,7 @@ jobs:
       - uses: ./
         with:
           path: tests/fixtures/shop-web
+
+      - uses: ./
+        with:
+          path: tests/fixtures/pnpm-monorepo

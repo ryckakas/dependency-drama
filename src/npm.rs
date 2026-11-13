@@ -1,17 +1,15 @@
 //! Reads npm's `package-lock.json` (lockfileVersion 2 and 3) into the neutral model.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fmt;
-use std::fs;
-use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use nodejs_semver::{Range, Version};
 use serde::Deserialize;
 
+use crate::lockfile::{self, ReadError};
 use crate::model::{Package, Peer, Project, Source};
 
-const LOCKFILE: &str = "package-lock.json";
+pub(crate) const LOCKFILE: &str = "package-lock.json";
 const PUBLIC_REGISTRY: &str = "https://registry.npmjs.org/";
 const NODE_MODULES: &str = "node_modules/";
 
@@ -32,38 +30,8 @@ const HOUSEHOLD_NAMES: &[&str] = &[
     "webpack",
 ];
 
-#[derive(Debug)]
-pub(crate) enum ReadError {
-    Missing(PathBuf),
-    Unreadable(PathBuf, io::Error),
-    Malformed(PathBuf, serde_json::Error),
-    /// npm 5 and 6 wrote lockfileVersion 1, which has no `packages` map.
-    TooOld,
-}
-
-impl fmt::Display for ReadError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Missing(path) => write!(
-                f,
-                "no {LOCKFILE} at {}. Run `npm install` there, or point me at a project that has one.",
-                path.display()
-            ),
-            Self::Unreadable(path, error) => write!(f, "cannot read {}: {error}", path.display()),
-            Self::Malformed(path, error) => {
-                write!(
-                    f,
-                    "{} is not a lockfile I can read: {error}",
-                    path.display()
-                )
-            }
-            Self::TooOld => write!(
-                f,
-                "This lockfile was written by npm 6 or older. Too old to gossip about: \
-                 run `npm install` with a current npm and the drama can begin."
-            ),
-        }
-    }
+pub(crate) fn is_household_name(name: &str) -> bool {
+    HOUSEHOLD_NAMES.contains(&name)
 }
 
 #[derive(Deserialize)]
@@ -96,18 +64,15 @@ pub(crate) fn read(path: &Path) -> Result<Project, ReadError> {
     } else {
         path.to_path_buf()
     };
-    let text = fs::read_to_string(&file).map_err(|error| match error.kind() {
-        io::ErrorKind::NotFound => ReadError::Missing(file.clone()),
-        _ => ReadError::Unreadable(file.clone(), error),
-    })?;
-    let lockfile: Lockfile =
-        serde_json::from_str(&text).map_err(|error| ReadError::Malformed(file.clone(), error))?;
+    let text = lockfile::text(&file)?;
+    let lockfile: Lockfile = serde_json::from_str(&text)
+        .map_err(|error| ReadError::Malformed(file.clone(), error.to_string()))?;
     let entries = lockfile.packages.ok_or(ReadError::TooOld)?;
     let root = entries.get("");
     let name = root
         .and_then(|root| root.name.clone())
         .or(lockfile.name)
-        .or_else(|| directory_name(&file))
+        .or_else(|| lockfile::directory_name(&file))
         .unwrap_or_else(|| "this project".to_owned());
     let direct = direct_paths(&entries);
     let packages = entries
@@ -115,17 +80,6 @@ pub(crate) fn read(path: &Path) -> Result<Project, ReadError> {
         .filter_map(|(path, entry)| package(&entries, &direct, path, entry))
         .collect();
     Ok(Project { name, packages })
-}
-
-fn directory_name(lockfile: &Path) -> Option<String> {
-    let directory = lockfile
-        .canonicalize()
-        .ok()?
-        .parent()?
-        .file_name()?
-        .to_str()?
-        .to_owned();
-    Some(directory)
 }
 
 /// Where the dependencies declared by the root and by every workspace member are installed. In a
@@ -177,7 +131,7 @@ fn package(
         .clone()
         .unwrap_or_else(|| installed_as.to_owned());
     Some(Package {
-        household_name: HOUSEHOLD_NAMES.contains(&name.as_str()),
+        household_name: is_household_name(&name),
         name,
         version,
         direct: direct.contains(path),
@@ -253,7 +207,7 @@ fn resolve<'a>(entries: &'a BTreeMap<String, Entry>, path: &str, name: &str) -> 
 }
 
 /// `None` when the version or the range is not semver (a git URL, a tag), so nothing can be claimed.
-fn satisfies(version: &str, range: &str) -> Option<bool> {
+pub(crate) fn satisfies(version: &str, range: &str) -> Option<bool> {
     // npm accepts anything for these without consulting semver, `0.0.0-experimental` included.
     if matches!(range.trim(), "" | "*") {
         return Some(true);
@@ -270,7 +224,8 @@ mod tests {
 
     use tempfile::TempDir;
 
-    use super::{ReadError, read, satisfies};
+    use super::{read, satisfies};
+    use crate::lockfile::ReadError;
     use crate::model::{Project, Source};
 
     fn project_with(lockfile: &str) -> TempDir {

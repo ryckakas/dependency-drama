@@ -25,6 +25,11 @@ what a user reads on the GitHub release page.
   a private registry, a git URL or a local path are never sent, and `--offline` sends nothing.
 - **`--base <path>`.** Compared with the same project before a change, up to three more scenes
   tell which direct dependencies were added, removed or moved up a major version.
+- **pnpm.** `pnpm-lock.yaml` from pnpm 9 or newer is read like npm's lockfile, workspaces
+  included. It records neither funding requests nor install scripts, so those two scenes do not
+  appear. Because it does not say which registry a package came from, the registry settings pnpm
+  would use are read, and a name from a scope or default registry that is not `registry.npmjs.org`
+  is never looked up.
 - **npm workspaces.** The dependencies of every workspace member count as direct, not only the
   root's.
 - **`--markdown` and `--json`.** Markdown for a pull request comment, with third-party text

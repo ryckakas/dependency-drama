@@ -2,9 +2,12 @@
 
 mod date;
 mod episode;
+mod lockfile;
 mod model;
 mod npm;
+mod npmrc;
 mod plots;
+mod pnpm;
 mod registry;
 mod render;
 
@@ -15,14 +18,14 @@ use std::process::ExitCode;
 use clap::Parser;
 
 use crate::date::Date;
-use crate::npm::ReadError;
+use crate::lockfile::ReadError;
 use crate::registry::{HttpRegistry, Registry};
 
 /// Deadpan jokes about your dependencies. Every line is a true fact from the lockfile.
 #[derive(Debug, Parser)]
 #[command(version, about)]
 struct Arguments {
-    /// The project directory, or its package-lock.json.
+    /// The project directory, or its package-lock.json or pnpm-lock.yaml.
     #[arg(default_value = ".")]
     path: PathBuf,
 
@@ -34,7 +37,7 @@ struct Arguments {
     #[arg(long, conflicts_with = "markdown")]
     json: bool,
 
-    /// The same project before a change: a directory, or a package-lock.json.
+    /// The same project before a change: a directory, or its lockfile.
     ///
     /// Direct dependencies that were added, removed or moved up a major version since then are
     /// told as tonight's scenes.
@@ -58,7 +61,7 @@ fn main() -> ExitCode {
     };
     match run(&arguments, registry, Date::today()) {
         Ok(output) => print(&output),
-        Err(error @ ReadError::TooOld) => print(&format!("{error}\n")),
+        Err(error) if error.is_an_old_lockfile() => print(&format!("{error}\n")),
         Err(error) => {
             let _written: io::Result<()> =
                 writeln!(io::stderr().lock(), "dependency-drama: {error}");
@@ -72,14 +75,14 @@ fn run(
     registry: Option<&dyn Registry>,
     today: Date,
 ) -> Result<String, ReadError> {
-    let project = npm::read(&arguments.path)?;
+    let project = lockfile::read(&arguments.path)?;
     let mut plots = plots::offline(&project);
     if let Some(registry) = registry {
         let facts = registry::lookup_direct(&project, registry);
         plots.extend(plots::from_registry(&project, &facts, today));
     }
     if let Some(base) = &arguments.base {
-        plots.extend(plots::since(&npm::read(base)?, &project));
+        plots.extend(plots::since(&lockfile::read(base)?, &project));
     }
     let episode = episode::write(&project.name, plots);
     Ok(if arguments.json {
@@ -259,6 +262,26 @@ mod tests {
         };
 
         assert!(run(&compared, None, date(2026, 11, 13)).is_err());
+    }
+
+    #[test]
+    fn a_pnpm_monorepo_gets_an_episode_from_what_its_members_ask_for() {
+        let arguments = Arguments {
+            path: PathBuf::from("tests/fixtures/pnpm-monorepo"),
+            ..arguments(false)
+        };
+
+        let output = run(&arguments, None, date(2026, 11, 13)).expect("episode");
+
+        assert!(
+            output.starts_with("PREVIOUSLY ON pnpm-monorepo…\n\n"),
+            "{output}"
+        );
+        assert!(
+            output.contains("widget") && output.contains("^17.0.0"),
+            "{output}"
+        );
+        assert!(output.contains("lodash"), "{output}");
     }
 
     #[test]
