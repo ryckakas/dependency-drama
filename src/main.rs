@@ -17,9 +17,14 @@ use std::process::ExitCode;
 
 use clap::Parser;
 
+use std::collections::HashMap;
+
 use crate::date::Date;
+use crate::episode::Episode;
 use crate::lockfile::ReadError;
-use crate::registry::{HttpRegistry, Registry};
+use crate::model::Project;
+use crate::plots::Plot;
+use crate::registry::{HttpRegistry, Registry, RegistryFacts};
 
 /// Deadpan jokes about your dependencies. Every line is a true fact from the lockfile.
 #[derive(Debug, Parser)]
@@ -76,15 +81,20 @@ fn run(
     today: Date,
 ) -> Result<String, ReadError> {
     let project = lockfile::read(&arguments.path)?;
-    let mut plots = plots::offline(&project);
-    if let Some(registry) = registry {
-        let facts = registry::lookup_direct(&project, registry);
-        plots.extend(plots::from_registry(&project, &facts, today));
-    }
+    let facts = registry.map(|registry| registry::lookup_direct(&project, registry));
+    let mut plots = already_true(&project, facts.as_ref(), today);
+    let mut rerun = false;
     if let Some(base) = &arguments.base {
-        plots.extend(plots::since(&lockfile::read(base)?, &project));
+        let before = lockfile::read(base)?;
+        // Told under today's name, so only the facts can make the two differ.
+        rerun = episode::write(&project.name, plots.clone()).scenes
+            == episode::write(&project.name, already_true(&before, facts.as_ref(), today)).scenes;
+        plots.extend(plots::since(&before, &project));
     }
-    let episode = episode::write(&project.name, plots);
+    let episode = Episode {
+        rerun,
+        ..episode::write(&project.name, plots)
+    };
     Ok(if arguments.json {
         render::json(&episode)
     } else if arguments.markdown {
@@ -92,6 +102,20 @@ fn run(
     } else {
         render::terminal(&episode)
     })
+}
+
+/// Everything but tonight's scenes. The registry was asked about today's direct dependencies only,
+/// so a base is told without facts for a dependency the change removed.
+fn already_true(
+    project: &Project,
+    facts: Option<&HashMap<String, RegistryFacts>>,
+    today: Date,
+) -> Vec<Plot> {
+    let mut plots = plots::offline(project);
+    if let Some(facts) = facts {
+        plots.extend(plots::from_registry(project, facts, today));
+    }
+    plots
 }
 
 /// A closed pipe (`| head`) ends the output quietly; `println!` would panic on it.
@@ -237,6 +261,44 @@ mod tests {
             "{output}"
         );
         assert!(tonight.contains("request"), "{output}");
+    }
+
+    /// The Markdown for a project whose root gained one direct dependency, `extra`.
+    fn markdown_after_adding(extra: &str) -> String {
+        let scratch = tempfile::tempdir().expect("scratch directory");
+        let shared = r#""node_modules/a":{"version":"0.1.0"},"node_modules/b":{"version":"0.2.0"}"#;
+        let base = lockfile(
+            &scratch.path().join("base"),
+            &format!(r#""":{{"dependencies":{{"a":"*","b":"*"}}}},{shared}"#),
+        );
+        let head = lockfile(
+            &scratch.path().join("head"),
+            &format!(
+                r#""":{{"dependencies":{{"a":"*","b":"*","extra":"*"}}}},{shared},"node_modules/extra":{extra}"#
+            ),
+        );
+        let arguments = Arguments {
+            path: head,
+            base: Some(base),
+            ..arguments(true)
+        };
+        run(&arguments, None, date(2026, 11, 13)).expect("episode")
+    }
+
+    #[test]
+    fn a_change_that_leaves_previously_on_alone_gets_it_folded() {
+        let output = markdown_after_adding(r#"{"version":"1.0.0"}"#);
+
+        assert!(output.contains("<details>"), "{output}");
+        assert!(output.contains("**Tonight…**"), "{output}");
+    }
+
+    #[test]
+    fn a_change_that_adds_to_previously_on_shows_it_open() {
+        let output = markdown_after_adding(r#"{"version":"1.0.0","deprecated":"Gone."}"#);
+
+        assert!(!output.contains("<details>"), "{output}");
+        assert!(output.contains("Gone."), "{output}");
     }
 
     #[test]

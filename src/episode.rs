@@ -19,6 +19,8 @@ pub(crate) struct Episode {
     /// What the change under review did that had no room for a scene. It is still named, since a
     /// reader takes a missing line for something that did not happen.
     pub(crate) untold: Vec<Plot>,
+    /// "Previously on" is word for word what the project told before the change under review.
+    pub(crate) rerun: bool,
 }
 
 impl Episode {
@@ -50,12 +52,13 @@ impl Scene {
 pub(crate) fn write(project: &str, mut plots: Vec<Plot>) -> Episode {
     let project = &tidy(project);
     plots.sort_by_cached_key(|plot| (Reverse(plot.juiciness()), seed(project, plot)));
+    // One scene per kind before any kind gets a second, so a large project, which has some of
+    // every fact, is not told the same few kinds every time.
     let mut cast: Vec<&Plot> = Vec::new();
-    for plot in &plots {
-        if has_room(&cast, plot.kind()) {
-            cast.push(plot);
-        }
+    for per_kind in [1, SCENES_PER_KIND] {
+        cast_more(&plots, &mut cast, per_kind);
     }
+    let mut cast: Vec<&Plot> = plots.iter().filter(|plot| cast.contains(plot)).collect();
     let mut untold: Vec<Plot> = plots
         .iter()
         .filter(|plot| plot.kind().is_tonight() && !cast.contains(plot))
@@ -86,6 +89,7 @@ pub(crate) fn write(project: &str, mut plots: Vec<Plot>) -> Episode {
         project: project.to_owned(),
         scenes,
         untold,
+        rerun: false,
     }
 }
 
@@ -102,7 +106,15 @@ fn note(plot: &Plot) -> String {
     tidy(&note)
 }
 
-fn has_room(cast: &[&Plot], kind: Kind) -> bool {
+fn cast_more<'a>(plots: &'a [Plot], cast: &mut Vec<&'a Plot>, per_kind: usize) {
+    for plot in plots {
+        if !cast.contains(&plot) && has_room(cast, plot.kind(), per_kind) {
+            cast.push(plot);
+        }
+    }
+}
+
+fn has_room(cast: &[&Plot], kind: Kind, per_kind: usize) -> bool {
     let same_kind = cast.iter().filter(|plot| plot.kind() == kind).count();
     let same_act = cast
         .iter()
@@ -114,7 +126,7 @@ fn has_room(cast: &[&Plot], kind: Kind) -> bool {
         SCENES
     };
     let ambient = cast.iter().any(|plot| plot.kind().is_ambient());
-    same_act < act && same_kind < SCENES_PER_KIND && !(kind.is_ambient() && ambient)
+    same_act < act && same_kind < per_kind && !(kind.is_ambient() && ambient)
 }
 
 /// The seeded choice, moved along to the next line the episode has not used yet.
@@ -402,6 +414,21 @@ mod tests {
 
     #[test]
     fn changes_without_a_scene_are_still_named_in_one_line() {
+        let plots: Vec<_> = ["a", "b", "c"].map(arrival).to_vec();
+
+        let episode = write("shop-web", plots);
+
+        assert_eq!(episode.untold.len(), 1);
+        let line = episode.untold_line().expect("a line");
+        assert!(
+            line.starts_with("Also tonight: ") && line.ends_with(" 1.0.0 arrived."),
+            "{line}"
+        );
+        assert_eq!(write("shop-web", vec![arrival("a")]).untold_line(), None);
+    }
+
+    #[test]
+    fn every_kind_of_change_gets_a_scene_before_a_kind_gets_a_second() {
         let mut plots: Vec<_> = ["dayjs", "ms"].map(arrival).to_vec();
         plots.push(Plot::Recast {
             name: "eslint-plugin-unicorn".to_owned(),
@@ -417,11 +444,13 @@ mod tests {
 
         let episode = write("shop-web", plots);
 
-        assert_eq!(
-            episode.untold_line().as_deref(),
-            Some("Also tonight: @types/dompurify 3.2.0 written out.")
-        );
-        assert_eq!(write("shop-web", vec![arrival("a")]).untold_line(), None);
+        let kinds: Vec<_> = episode
+            .scenes
+            .iter()
+            .filter_map(|scene| scene.plot.as_ref().map(Plot::kind))
+            .collect();
+        assert_eq!(kinds, [Kind::NewArrival, Kind::Recast, Kind::WrittenOut]);
+        assert_eq!(episode.untold.len(), 1);
     }
 
     #[test]
@@ -444,6 +473,50 @@ mod tests {
         assert_eq!(episode.scenes.len(), 2);
         assert_eq!(episode.scenes[0].plot, None);
         assert!(episode.scenes[1].is_tonight());
+    }
+
+    #[test]
+    fn a_project_with_every_kind_of_fact_gets_five_different_kinds() {
+        let feud = |name: &str| Plot::Feud {
+            name: name.to_owned(),
+            peer: "react".to_owned(),
+            range: "^17".to_owned(),
+            installed: "18.3.1".to_owned(),
+        };
+        let mut plots = vec![feud("a"), feud("b"), ghost("c", true), ghost("d", true)];
+        plots.push(Plot::TimeCapsule {
+            name: "e".to_owned(),
+            version: "1.0.0".to_owned(),
+            latest: "2.0.0".to_owned(),
+            majors_behind: 1,
+        });
+        plots.push(Plot::Entourage {
+            direct: 33,
+            installed: 3000,
+        });
+        plots.push(almost_ready("f"));
+        plots.push(Plot::Clones {
+            name: "g".to_owned(),
+            versions: 5,
+        });
+
+        let episode = write("monorepo", plots);
+
+        let kinds: Vec<_> = episode
+            .scenes
+            .iter()
+            .filter_map(|scene| scene.plot.as_ref().map(Plot::kind))
+            .collect();
+        assert_eq!(
+            kinds,
+            [
+                Kind::Feud,
+                Kind::Ghost,
+                Kind::TimeCapsule,
+                Kind::Entourage,
+                Kind::AlmostReady
+            ]
+        );
     }
 
     #[test]

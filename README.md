@@ -56,7 +56,8 @@ dependency-drama --base ../before  # also tell what changed since that state
 
 The action writes the episode to the job summary of every run. On a pull request that changes
 the lockfile it also posts the episode as one comment, including what the pull request did,
-and updates that comment on later pushes.
+and updates that comment on later pushes. When the pull request leaves "Previously on" as it
+was, the comment folds that part away, so what the pull request did is what a reviewer sees.
 
 ```yaml
 on: pull_request
@@ -126,7 +127,8 @@ scene:
 | Written out | A direct dependency that is no longer there |
 | Recast | A direct dependency moved up a major version |
 
-An episode has five scenes at most, not counting tonight's. The same lockfile always gives the same
+An episode has five scenes at most, not counting tonight's, and every kind of fact gets one scene
+before any kind gets a second. The same lockfile always gives the same
 episode for the same project name, which is the `name` in `package.json` (npm also keeps it in
 `package-lock.json`). Only a project without one is named after its directory, and that name can
 differ between a CI checkout and a local clone.
