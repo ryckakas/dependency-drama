@@ -1,0 +1,9 @@
+# Steps dist adds to every release build job, right after checkout (`github-build-setup` in
+# dist-workspace.toml). Runner images trail the Rust release by weeks, and the crate's
+# rust-version can be newer than the Rust they bring, so the build installs current stable the
+# way CI does. Kept outside .github/workflows so GitHub does not read it as a workflow.
+- name: Install stable Rust
+  shell: bash
+  run: |
+    rustup toolchain install stable --profile minimal --no-self-update
+    rustup default stable

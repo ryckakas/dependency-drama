@@ -14,13 +14,13 @@ rules:
   template-injection:
     ignore:
       - release.yml:79:91
-      - release.yml:130:18
-      - release.yml:140:15
-      - release.yml:144:26
-      - release.yml:144:98
-      - release.yml:197:26
-      - release.yml:247:25
-      - release.yml:278:34
+      - release.yml:135:18
+      - release.yml:145:15
+      - release.yml:149:26
+      - release.yml:149:98
+      - release.yml:202:26
+      - release.yml:252:25
+      - release.yml:283:34
   # dist's optional build container, which none of this project's targets sets.
   unpinned-images:
     ignore:
@@ -28,11 +28,11 @@ rules:
   # setup-node's cache in the npm publish job. A tag build restores only caches written on main.
   cache-poisoning:
     ignore:
-      - release.yml:342:9
+      - release.yml:347:9
   # npm's token, until npm trusts this workflow over OIDC.
   use-trusted-publishing:
     ignore:
-      - release.yml:349:13
+      - release.yml:354:13
   # drama.yml runs the action from its own checkout with `./`, which is the point of that workflow.
   self-repository:
     ignore:

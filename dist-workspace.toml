@@ -20,6 +20,9 @@ publish-jobs = ["homebrew", "npm"]
 npm-shrinkwrap = false
 # The release workflow runs only for a pushed release tag, not on every pull request.
 pr-run-mode = "skip"
+# Installs current stable Rust in each build job: the runner's own Rust can be older than
+# rust-version.
+github-build-setup = "../build-setup.yml"
 # Target platforms to build apps for (Rust target-triple syntax)
 targets = [
     "aarch64-apple-darwin",
