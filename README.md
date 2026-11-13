@@ -74,6 +74,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false # the action never uses git credentials
       - uses: ryckakas/dependency-drama@v0.1.0 # or pin the release's full commit SHA
 ```
 
@@ -94,8 +96,7 @@ A pull request from a fork gets a read-only token, so it gets the job summary an
 npm and pnpm workspaces share one lockfile at the root, and the dependencies of every workspace
 member are read from it: one step, default `path`. Tonight compares each member with its own
 earlier state, so a major upgrade in some members says how many of those using the package moved.
-Projects with their own lockfile in separate directories
-get one step each, and one comment each:
+Projects with their own lockfile in separate directories get one step each, and one comment each:
 
 ```yaml
       - uses: ryckakas/dependency-drama@v0.1.0
@@ -105,6 +106,27 @@ get one step each, and one comment each:
         with:
           path: admin
 ```
+
+The action reads only a few files: the lockfile, `package.json` beside it (for the project's
+name), and the registry settings `.npmrc` and, for pnpm, `pnpm-workspace.yaml`. A large
+repository can check out just those:
+
+```yaml
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /package.json
+            /pnpm-lock.yaml
+            /pnpm-workspace.yaml
+            /.npmrc
+          sparse-checkout-cone-mode: false
+      - uses: ryckakas/dependency-drama@v0.1.0
+```
+
+For a project in a subdirectory, list its files under that directory, and keep `package.json`:
+without it, the project is named after the checkout directory, which in CI is the repository's
+name.
 
 ## What it looks for
 
@@ -121,8 +143,8 @@ get one step each, and one comment each:
 | Night visitor | Packages that run a script on install |
 
 With `--base`, pointing at the same project before a change (a directory or its lockfile),
-up to three more scenes follow under "Tonight", and one closing line names any change left without a
-scene:
+up to three more scenes follow under "Tonight", and one closing line names any change left
+without a scene:
 
 | Scene | The fact behind it |
 |---|---|
