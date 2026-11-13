@@ -25,14 +25,6 @@ rules:
   unpinned-images:
     ignore:
       - release.yml:110:66
-  # setup-node's cache in the npm publish job. A tag build restores only caches written on main.
-  cache-poisoning:
-    ignore:
-      - release.yml:347:9
-  # npm's token, until npm trusts this workflow over OIDC.
-  use-trusted-publishing:
-    ignore:
-      - release.yml:354:13
   # drama.yml runs the action from its own checkout with `./`, which is the point of that workflow.
   self-repository:
     ignore:
