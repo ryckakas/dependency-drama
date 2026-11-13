@@ -11,11 +11,6 @@ on:
         description: "Release to stage, e.g. v0.1.0"
         required: true
         type: string
-      first_publish:
-        description: "Create the package on npm, which has never seen it, with NPM_TOKEN"
-        required: true
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -40,17 +35,7 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern dependency-drama-npm-package.tar.gz
 
-      # Trusted publishing is set up on the package's page on npmjs.com, which exists only after
-      # the first version, so that one is staged with a token. npm prefers a configured token
-      # over trusted publishing, so later runs must not have one at all.
-      - name: Stage with NPM_TOKEN
-        if: ${{ inputs.first_publish }}
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > "$HOME/.npmrc"
-          npm stage publish ./dependency-drama-npm-package.tar.gz
-
+      # Trusted publishing, set up on the package's page on npmjs.com, is the only way in: the
+      # package disallows tokens that bypass 2FA, so no token can stage or publish it from CI.
       - name: Stage through trusted publishing
-        if: ${{ !inputs.first_publish }}
         run: npm stage publish ./dependency-drama-npm-package.tar.gz
