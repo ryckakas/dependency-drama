@@ -405,8 +405,25 @@ fn quotable(message: &str) -> String {
     if flat.chars().count() <= MESSAGE_LENGTH {
         return flat;
     }
-    let cut: String = flat.chars().take(MESSAGE_LENGTH).collect();
-    format!("{}…", cut.trim_end())
+    // One character past the limit, so a sentence or a word that ends exactly at it still counts.
+    let window: String = flat.chars().take(MESSAGE_LENGTH + 1).collect();
+    if let Some(end) = last_sentence_end(&window) {
+        return window[..end].to_owned();
+    }
+    let cut: String = match window.rfind(' ') {
+        Some(space) => window[..space].to_owned(),
+        None => window.chars().take(MESSAGE_LENGTH).collect(),
+    };
+    format!("{cut}…")
+}
+
+/// Where the last sentence that ends inside `text`, followed by a space, stops.
+fn last_sentence_end(text: &str) -> Option<usize> {
+    [". ", "! ", "? "]
+        .iter()
+        .flat_map(|end| text.match_indices(end))
+        .map(|(at, _)| at + 1)
+        .max()
 }
 
 fn clones(project: &Project) -> Vec<Plot> {
@@ -516,6 +533,17 @@ mod tests {
         }
     }
 
+    fn ghost_message(message: &str) -> String {
+        let package = Package {
+            deprecation: Some(message.to_owned()),
+            ..package("old", "1.0.0")
+        };
+        match offline(&project(vec![package])).remove(0) {
+            Plot::Ghost { message, .. } => message,
+            other => panic!("expected a ghost, got {other:?}"),
+        }
+    }
+
     fn crowd(count: usize) -> Vec<Package> {
         (0..count)
             .map(|index| package(&format!("extra-{index}"), "1.0.0"))
@@ -600,21 +628,45 @@ mod tests {
 
     #[test]
     fn a_long_or_missing_deprecation_message_stays_quotable() {
-        let ghost = |message: &str| {
-            let package = Package {
-                deprecation: Some(message.to_owned()),
-                ..package("old", "1.0.0")
-            };
-            match offline(&project(vec![package])).remove(0) {
-                Plot::Ghost { message, .. } => message,
-                other => panic!("expected a ghost, got {other:?}"),
-            }
-        };
+        assert_eq!(ghost_message(""), "no reason given");
+        assert_eq!(ghost_message(&"x".repeat(110)).chars().count(), 110);
+        assert_eq!(
+            ghost_message(&"x".repeat(111)),
+            format!("{}…", "x".repeat(110))
+        );
+    }
 
-        assert_eq!(ghost(""), "no reason given");
-        assert_eq!(ghost(&"x".repeat(110)).chars().count(), 110);
-        assert_eq!(ghost(&"x".repeat(111)).chars().count(), 111);
-        assert!(ghost(&"x".repeat(111)).ends_with('…'));
+    #[test]
+    fn a_long_deprecation_message_stops_at_a_sentence_that_fits() {
+        assert_eq!(
+            ghost_message(
+                "uuid@10 and below is no longer supported. For ESM codebases, update to uuid@latest. For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028)."
+            ),
+            "uuid@10 and below is no longer supported. For ESM codebases, update to uuid@latest."
+        );
+        assert_eq!(
+            ghost_message(
+                "This is a stub types definition. dompurify provides its own type definitions, so you do not need this installed."
+            ),
+            "This is a stub types definition."
+        );
+    }
+
+    #[test]
+    fn a_long_message_without_a_sentence_that_fits_is_cut_between_words() {
+        assert_eq!(
+            ghost_message(&"word ".repeat(30)),
+            format!("{}…", "word ".repeat(22).trim_end())
+        );
+    }
+
+    #[test]
+    fn a_sentence_or_a_word_ending_exactly_at_the_limit_is_kept_whole() {
+        let sentence = format!("{}.", "x".repeat(109));
+        let word = "x".repeat(110);
+
+        assert_eq!(ghost_message(&format!("{sentence} More.")), sentence);
+        assert_eq!(ghost_message(&format!("{word} more")), format!("{word}…"));
     }
 
     #[test]
