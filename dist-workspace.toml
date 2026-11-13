@@ -18,6 +18,8 @@ publish-jobs = ["homebrew", "npm"]
 # A published shrinkwrap makes npm materialise the generated package's whole dependency tree
 # for consumers, dev entries included. Without it, npm resolves the real dependency normally.
 npm-shrinkwrap = false
+# The release workflow runs only for a pushed release tag, not on every pull request.
+pr-run-mode = "skip"
 # Target platforms to build apps for (Rust target-triple syntax)
 targets = [
     "aarch64-apple-darwin",
