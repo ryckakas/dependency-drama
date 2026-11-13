@@ -25,15 +25,18 @@ rules:
   unpinned-images:
     ignore:
       - release.yml:110:66
-  # dist calls every custom publish job with all secrets. publish-crates.yml reads none: it
-  # authenticates with GitHub's identity token. The repository's only secret is HOMEBREW_TAP_TOKEN.
+  # dist calls every custom publish job with all secrets. publish-crates.yml and publish-npm.yml
+  # read none: they authenticate with GitHub's identity token. The repository's only secret is
+  # HOMEBREW_TAP_TOKEN.
   secrets-inherit:
     ignore:
       - release.yml:336:11
+      - release.yml:350:11
   # drama.yml runs the action from its own checkout with `./`, which is the point of that workflow.
-  # release.yml calls publish-crates.yml the same way, as dist writes it.
+  # release.yml calls the publish workflows the same way, as dist writes it.
   self-repository:
     ignore:
       - drama.yml:46:15
       - drama.yml:51:15
       - release.yml:336:11
+      - release.yml:350:11

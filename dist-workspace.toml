@@ -13,12 +13,13 @@ installers = ["shell", "powershell", "homebrew", "npm"]
 # homebrew-core rejects prebuilt binaries, so the formula goes to a personal tap.
 # Publishing needs a HOMEBREW_TAP_TOKEN secret with write access to that repo.
 tap = "ryckakas/homebrew-tap"
-# npm is published by publish-npm.yml instead: npm wants `npm stage publish` from npm 11.15 or
-# newer, and dist's npm job runs `npm publish` on Node 20. dist still builds the npm package.
-publish-jobs = ["homebrew", "./publish-crates"]
-# crates.io trusted publishing needs only an identity token; dist's default for a custom publish
-# job adds packages: write, which this one has no use for.
-github-custom-job-permissions = { "publish-crates" = { contents = "read", id-token = "write" } }
+# npm is staged by publish-npm.yml instead of dist's npm job: npm wants `npm stage publish` from
+# npm 11.15 or newer, and dist's npm job runs `npm publish` on Node 20. dist still builds the
+# npm package.
+publish-jobs = ["homebrew", "./publish-crates", "./publish-npm"]
+# Trusted publishing needs only an identity token; dist's default for a custom publish job adds
+# packages: write, which neither of these has a use for.
+github-custom-job-permissions = { "publish-crates" = { contents = "read", id-token = "write" }, "publish-npm" = { contents = "read", id-token = "write" } }
 # A published shrinkwrap makes npm materialise the generated package's whole dependency tree
 # for consumers, dev entries included. Without it, npm resolves the real dependency normally.
 npm-shrinkwrap = false

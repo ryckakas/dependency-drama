@@ -1,10 +1,20 @@
 name: Publish to npm
 
-# Stages the npm package that the release workflow built and attached to a GitHub release. A
-# staged version is not installable until a maintainer approves it on npmjs.com with 2FA, so
-# neither this workflow nor its credentials can put a version on npm alone. dist's own npm job
-# cannot do this: it runs `npm publish` on Node 20, and staging needs npm 11.15 or newer.
+# Stages the npm package that the release workflow built. A staged version is not installable
+# until a maintainer approves it on npmjs.com with 2FA, so neither this workflow nor its
+# credentials can put a version on npm alone. dist's own npm job cannot do this: it runs
+# `npm publish` on Node 20, and staging needs npm 11.15 or newer.
+#
+# Called by release.yml as a dist publish job, so a pushed release tag stages the package after
+# the release is built and before it is announced: `publish-jobs` in dist-workspace.toml. Manual
+# dispatch stages the package of a release that is already published, to retry a failed stage.
 on:
+  workflow_call:
+    inputs:
+      # dist passes its release plan to every publish job; this one needs none of it.
+      plan:
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       tag:
@@ -29,7 +39,16 @@ jobs:
           node-version: "24"
           package-manager-cache: false
 
-      - name: Download the npm package
+      # Called from release.yml, the release is not published yet, so the package comes from the
+      # run's own build artifacts: the installers dist builds once for all platforms.
+      - name: Download the npm package from this release run
+        if: ${{ !inputs.tag }}
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: artifacts-build-global
+
+      - name: Download the npm package from the release
+        if: ${{ inputs.tag }}
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
@@ -37,5 +56,6 @@ jobs:
 
       # Trusted publishing, set up on the package's page on npmjs.com, is the only way in: the
       # package disallows tokens that bypass 2FA, so no token can stage or publish it from CI.
+      # npm checks the workflow that started the run: release.yml when called from there.
       - name: Stage through trusted publishing
         run: npm stage publish ./dependency-drama-npm-package.tar.gz
