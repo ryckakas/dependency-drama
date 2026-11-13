@@ -1,0 +1,157 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Every job only reads the checkout: nothing here pushes, comments or publishes.
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+# A new push to a PR makes the previous run's result irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Format and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install stable Rust
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update \
+            --component rustfmt,clippy
+          rustup default stable
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      # An exact release, since each one adds corrections; Dependabot proposes the next one.
+      - name: Spelling
+        uses: crate-ci/typos@7f9d0819ca1c008ade73f4b41fa9d258d48f605b # v1.51.1
+
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: taplo,shellcheck@0.11.0
+
+      - name: TOML formatting
+        run: taplo fmt --check
+
+      # install-action has no actionlint, so the release archive is pinned by its hash, the way the
+      # actions are pinned by commit. It finds shellcheck on the PATH and runs it over `run:` blocks.
+      - name: Install actionlint
+        working-directory: ${{ runner.temp }}
+        run: |
+          archive=actionlint_1.7.12_linux_amd64.tar.gz
+          curl -fsSLO "https://github.com/rhysd/actionlint/releases/download/v1.7.12/$archive"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $archive" \
+            | sha256sum --check
+          mkdir bin
+          tar -xzf "$archive" -C bin actionlint
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+
+      - name: Workflows
+        run: actionlint
+
+  dependencies:
+    # deny.toml holds the policy: advisories, licenses, duplicate crates and allowed sources.
+    name: Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install stable Rust
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-deny,cargo-shear
+
+      - name: cargo deny
+        run: cargo deny check
+
+      - name: Unused dependencies
+        run: cargo shear
+
+  workflows:
+    # Audited like code: pinned actions, least-privilege tokens, no template injection.
+    name: Workflow security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: zizmor@1.30.1
+
+      # The token lets zizmor check that every pinned commit belongs to its action's repository.
+      - name: zizmor
+        run: zizmor --format github .github
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  test:
+    # One binary that runs anywhere is the claim, so the matrix is the claim under test.
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install stable Rust
+        # pwsh, Windows' default shell, would carry on past a failed install.
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Test
+        run: cargo test --all-features
+
+  msrv:
+    name: Minimum supported Rust version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the rust-version from the manifest
+        run: |
+          msrv=$(grep '^rust-version' Cargo.toml | cut -d'"' -f2)
+          rustup toolchain install "$msrv" --profile minimal --no-self-update
+          rustup default "$msrv"
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      # Build only: the lint config targets current stable, so clippy on an older toolchain could
+      # fail on lints that did not exist yet.
+      - name: Build
+        run: cargo build --all-features

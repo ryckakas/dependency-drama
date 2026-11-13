@@ -1,0 +1,4 @@
+{name} wants {peer} {range}. {peer} showed up as {installed}. They are not speaking.
+{name} asked for {peer} {range} and got {installed}. Dinner was tense.
+{peer} {installed} is not who {name} asked for. {name} was clear: {range}.
+{name} and {peer} cannot be in the same room: one demands {range}, the other is {installed}.

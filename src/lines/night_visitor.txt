@@ -1,0 +1,4 @@
+{name} has a key to the house: it runs a script on every install. Keys handed out so far cover {packages}.
+During every install, {name} runs a script. It has never said what it does. The total with this habit: {packages}.
+Install scripts run here on behalf of {packages}, {name} included. Nobody watches them work.
+{name} lets itself in during install and runs a script. Visitors with that habit so far: {packages}.

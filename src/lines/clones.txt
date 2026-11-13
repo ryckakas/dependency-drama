@@ -1,0 +1,4 @@
+There are {versions} different versions of {name} in this house. None of them acknowledges the others.
+{name} has been cast {versions} times, in {versions} versions. The audience is expected not to notice.
+{versions} versions of {name} sit at the same table. Each believes it is the original.
+Somewhere in node_modules, {versions} versions of {name} are slowly discovering each other.

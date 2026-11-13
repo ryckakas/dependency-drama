@@ -1,0 +1,5 @@
+{name} was declared deprecated. It is still here. Its last words: "{message}"
+{name} {version} has been deprecated, and nobody has asked it to leave. The note on its door: "{message}"
+{name} was written out of the show. It keeps turning up on set. Official statement: "{message}"
+{name} is deprecated and still installed. It left a note: "{message}"
+Everyone can still see {name} {version}, though it was deprecated. A message came through: "{message}"
