@@ -1,0 +1,5 @@
+# Spell check with `typos`, run by CI's lint job.
+
+[files]
+# Real lockfiles, full of package names and hashes.
+extend-exclude = ["tests/fixtures/**"]

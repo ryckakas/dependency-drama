@@ -1,0 +1,4 @@
+{name} has not been heard from since {year}. Its place at the table is still set.
+Nobody has seen {name} change in {years} years. The project still leaves the porch light on.
+{name} went quiet in {year}. This project depends on it and has not asked questions.
+{years} years without a word from {name}. It is still listed as family.

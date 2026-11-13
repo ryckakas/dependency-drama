@@ -1,0 +1,5 @@
+You invited {guests}. {installed} showed up.
+The guest list said {guests}. The caterer counted {installed}.
+The household now numbers {installed}. The invitations went out to {guests}.
+Nobody remembers inviting more than {guests}, yet dinner is set for {installed}.
+{installed} packages are living in node_modules. The lease names {guests}.

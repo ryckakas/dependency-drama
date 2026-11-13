@@ -1,0 +1,87 @@
+[package]
+name = "dependency-drama"
+description = "Your dependencies, narrated as a soap opera"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.100"
+license = "MIT"
+repository = "https://github.com/ryckakas/dependency-drama"
+readme = "README.md"
+keywords = ["dependencies", "npm", "lockfile", "humor", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+nodejs-semver = "7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = { version = "3", features = ["json"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+missing_docs = "warn"
+unreachable_pub = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+let_underscore_drop = "warn"
+meta_variable_misuse = "warn"
+redundant_imports = "warn"
+redundant_lifetimes = "warn"
+single_use_lifetimes = "warn"
+trivial_casts = "warn"
+trivial_numeric_casts = "warn"
+unit_bindings = "warn"
+unnameable_types = "warn"
+unused_import_braces = "warn"
+unused_lifetimes = "warn"
+unused_qualifications = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+# ring is a release behind on `windows-sys` and `getrandom`; deny.toml holds the reviewed list.
+multiple_crate_versions = "allow"
+excessive_nesting = "deny"
+too_many_lines = "deny"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+# From `restriction`, which is a menu rather than a group to enable. `print_stdout` is there
+# because `println!` panics on a closed pipe; `exit` would skip destructors.
+allow_attributes_without_reason = "warn"
+clone_on_ref_ptr = "warn"
+dbg_macro = "warn"
+exit = "warn"
+format_push_string = "warn"
+get_unwrap = "warn"
+infinite_loop = "warn"
+let_underscore_must_use = "warn"
+let_underscore_untyped = "warn"
+mem_forget = "warn"
+mixed_read_write_in_expression = "warn"
+panic_in_result_fn = "warn"
+print_stdout = "warn"
+rest_pat_in_fully_bound_structs = "warn"
+todo = "warn"
+try_err = "warn"
+unimplemented = "warn"
+unwrap_in_result = "warn"
+unwrap_used = "warn"
+verbose_file_reads = "warn"
+# From `nursery`, whose lints are too unsettled to take as a group.
+needless_collect = "warn"
+or_fun_call = "warn"
+too_long_first_doc_paragraph = "warn"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.dist]
+inherits = "release"
+lto = "thin"

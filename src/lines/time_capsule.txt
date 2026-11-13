@@ -1,0 +1,5 @@
+{name} is {majors} behind. Nobody has told it about {latest}.
+{name} {version} still thinks it is the latest. The family has not mentioned {latest}.
+The world moved on to {name} {latest}. This project stayed home with {version}.
+{name} is frozen at {version}, {majors} behind. The family is worried.
+{name} {latest} exists. In this house, the calendar still says {version}.

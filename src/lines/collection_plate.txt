@@ -1,0 +1,4 @@
+A collection plate is going around on behalf of {packages}. Nobody made eye contact. (npm fund)
+There is a tip jar out for {packages}. This project walks past it every day. (npm fund)
+Funding requests are on file from {packages}. The project changed the subject. (npm fund)
+This project has been asked for support by {packages}. It pretended to check its phone. (npm fund)

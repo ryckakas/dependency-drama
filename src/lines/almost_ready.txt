@@ -1,0 +1,5 @@
+{name} is at version {version}. It says it will be ready for 1.0 any day now.
+{name} {version} still has not committed to a 1.0. The project built its life around it anyway.
+This project depends on {name} {version}. {name} has promised nothing.
+{name} keeps its options open at {version}. Under semver, anything may change. Anything.
+{name} has not reached 1.0 and is in no hurry. It is {version}, and it is in your lockfile.
