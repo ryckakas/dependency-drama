@@ -107,6 +107,24 @@ impl Plot {
         }
     }
 
+    /// The package the scene is about, when it is about one.
+    pub(crate) fn name(&self) -> Option<&str> {
+        match self {
+            Self::AlmostReady { name, .. }
+            | Self::Ghost { name, .. }
+            | Self::Clones { name, .. }
+            | Self::Feud { name, .. }
+            | Self::TimeCapsule { name, .. }
+            | Self::MissingPerson { name, .. }
+            | Self::NewArrival { name, .. }
+            | Self::WrittenOut { name, .. }
+            | Self::Recast { name, .. } => Some(name),
+            Self::Entourage { .. } | Self::CollectionPlate { .. } | Self::NightVisitor { .. } => {
+                None
+            }
+        }
+    }
+
     /// How much the scene deserves its place: the rarer and more specific the fact, the higher.
     pub(crate) fn juiciness(&self) -> u64 {
         match self {
@@ -215,6 +233,24 @@ impl Kind {
         Self::WrittenOut,
         Self::Recast,
     ];
+
+    /// The name a line file and the JSON output know the kind by.
+    pub(crate) fn slug(self) -> &'static str {
+        match self {
+            Self::Entourage => "entourage",
+            Self::AlmostReady => "almost_ready",
+            Self::Ghost => "ghost",
+            Self::Clones => "clones",
+            Self::Feud => "feud",
+            Self::TimeCapsule => "time_capsule",
+            Self::MissingPerson => "missing_person",
+            Self::CollectionPlate => "collection_plate",
+            Self::NightVisitor => "night_visitor",
+            Self::NewArrival => "new_arrival",
+            Self::WrittenOut => "written_out",
+            Self::Recast => "recast",
+        }
+    }
 
     /// True of nearly every project, so an episode gets one such scene at most.
     pub(crate) fn is_ambient(self) -> bool {
@@ -940,6 +976,8 @@ mod tests {
 
         assert_eq!(plots.len(), Kind::ALL.len());
         for plot in plots {
+            let written = serde_json::to_value(&plot).expect("serializes");
+            assert_eq!(written["kind"], plot.kind().slug());
             let offered: Vec<_> = plot.values().into_iter().map(|(name, _)| name).collect();
             assert_eq!(offered, plot.kind().placeholders(), "{:?}", plot.kind());
         }

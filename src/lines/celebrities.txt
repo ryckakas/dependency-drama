@@ -1,0 +1,21 @@
+# Lines for packages most developers know by name: package | scene | line.
+# When a scene is about one of these packages, its own lines replace the general ones.
+# Public technical history only, true whatever version is installed, and never about a person.
+left-pad | ghost | {name} is deprecated and still here. In 2016 it left npm for a few hours and builds around the world stopped. It knows what it is worth.
+left-pad | new_arrival | {name} {version} joins the cast. The last time it left a registry, in 2016, builds around the world stopped. Be kind to it.
+left-pad | written_out | {name} has been written out. In 2016 its exit from npm broke builds around the world. This time it went quietly.
+moment | clones | {name} is installed at {versions} versions. Its own documentation calls the project done. The lockfile cannot get enough of it.
+moment | new_arrival | {name} {version} joins the cast. Its own documentation calls it a legacy project and suggests alternatives. It came anyway.
+request | ghost | {name} retired in 2020 and is still installed. It was downloaded millions of times a week when it stopped. Old habits.
+request | new_arrival | {name} {version} joins the cast. It retired in 2020. Somebody has talked it into one more job.
+is-odd | new_arrival | {name} {version} joins the cast. It answers one question, and it brought is-number along to help.
+is-even | new_arrival | {name} joins the cast at {version}. It works by asking is-odd and saying the opposite.
+express | time_capsule | {name} {version} is {majors} behind. Version 5 was about ten years in the making, so nobody here feels rushed.
+lodash | clones | There are {versions} versions of {name} installed. Each one can deep-clone an object. Nobody asked them to clone themselves.
+jquery | new_arrival | {name} {version} joins the cast. It has been in the business since 2006 and has watched frameworks come and go.
+jquery | time_capsule | {name} {version} is {majors} behind {latest}. It has been around since 2006 and does not see what the hurry is.
+typescript | recast | {name} went from {from} to {to}. It does not follow semver, so every release is a little bit major. This one says so on the label.
+react | clones | {name} is installed at {versions} versions. Its documentation has a warning page for exactly this.
+axios | almost_ready | {name} is at {version}. It spent eight years below 1.0 while being one of the most downloaded packages on npm. 1.0 has been out since 2022.
+node-sass | ghost | {name} {version} is deprecated and still installed. Its installs were known to stop and compile C++. The build servers remember.
+tslint | ghost | {name} was deprecated in 2019 in favour of ESLint and is still installed. It keeps linting. Nobody has told it.

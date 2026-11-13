@@ -2,3 +2,7 @@
 During every install, {name} runs a script. It has never said what it does. The total with this habit: {packages}.
 Install scripts run here on behalf of {packages}, {name} included. Nobody watches them work.
 {name} lets itself in during install and runs a script. Visitors with that habit so far: {packages}.
+{name} runs a script whenever you install. Counting it, scripts with no audience run for {packages}.
+While you wait for an install to finish, {name} is busy with a script of its own. In all, this is true of {packages}.
+{name} does something during install. It is in the script. In total, scripts run for {packages}.
+An install is never just an install: {name} runs a script, and the full list covers {packages}.

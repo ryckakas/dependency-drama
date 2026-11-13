@@ -2,3 +2,7 @@
 {name} asked for {peer} {range} and got {installed}. Dinner was tense.
 {peer} {installed} is not who {name} asked for. {name} was clear: {range}.
 {name} and {peer} cannot be in the same room: one demands {range}, the other is {installed}.
+{name} was promised {peer} {range}. What arrived was {installed}. Lawyers have been mentioned.
+{name} needs {peer} {range}. {peer} is {installed} and sees no problem. That is the problem.
+{name} wrote {range} on the invitation. {peer} came as {installed} anyway.
+The peer requirement was {peer} {range}. The installed reality is {installed}. {name} has gone very quiet.

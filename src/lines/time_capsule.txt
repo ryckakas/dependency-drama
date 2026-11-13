@@ -3,3 +3,7 @@
 The world moved on to {name} {latest}. This project stayed home with {version}.
 {name} is frozen at {version}, {majors} behind. The family is worried.
 {name} {latest} exists. In this house, the calendar still says {version}.
+{name} lives at {version}. {latest} sends postcards. They go unopened.
+{name} is {majors} behind and insists that {version} was a very good year.
+{latest} is out. {name} is still wearing {version}.
+{name} {version} and {latest} are {majors} apart. Nobody wants to be the one to bring it up.

@@ -3,3 +3,6 @@ A stranger arrives: {name} {version}. Nobody has asked where it came from.
 {name} {version} walks into the manifest as if it had always been there.
 New in town: {name} {version}. It says it is only here for one feature.
 {name} {version} has moved in. It has not said how long it plans to stay.
+{name} {version} is new here. It has already been given a key.
+Introducing {name} {version}. Everyone is pretending they read its README.
+{name} arrives at {version}. Nobody has asked what is in the suitcase.

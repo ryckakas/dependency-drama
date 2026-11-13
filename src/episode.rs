@@ -43,7 +43,7 @@ pub(crate) fn write(project: &str, mut plots: Vec<Plot>) -> Episode {
     cast.sort_by_key(|plot| plot.kind().is_tonight());
     let mut scenes: Vec<Scene> = Vec::new();
     for plot in cast {
-        let line = pick(&lines(plot.kind()), seed(project, plot), |line| {
+        let line = pick(&lines_for(plot), seed(project, plot), |line| {
             let text = fill(line, plot);
             scenes.iter().all(|scene| scene.text != text)
         });
@@ -108,6 +108,30 @@ fn tidy(text: &str) -> String {
         .join(" ")
 }
 
+/// A well-known package's own lines when it has any for this kind of scene, the general ones
+/// otherwise.
+fn lines_for(plot: &Plot) -> Vec<&'static str> {
+    let own: Vec<_> = celebrity_lines()
+        .filter(|(name, kind, _)| plot.name() == Some(name) && *kind == plot.kind().slug())
+        .map(|(_, _, line)| line)
+        .collect();
+    if own.is_empty() {
+        lines(plot.kind())
+    } else {
+        own
+    }
+}
+
+/// Rows of `package | scene | line`.
+fn celebrity_lines() -> impl Iterator<Item = (&'static str, &'static str, &'static str)> {
+    lines_in(include_str!("lines/celebrities.txt"))
+        .into_iter()
+        .filter_map(|row| {
+            let mut columns = row.splitn(3, " | ");
+            Some((columns.next()?, columns.next()?, columns.next()?))
+        })
+}
+
 fn lines(kind: Kind) -> Vec<&'static str> {
     lines_in(match kind {
         Kind::Entourage => include_str!("lines/entourage.txt"),
@@ -145,7 +169,7 @@ fn fnv1a(text: &str) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{Episode, SCENES, SCENES_TONIGHT, fnv1a, lines, lines_in, write};
+    use super::{Episode, SCENES, SCENES_TONIGHT, celebrity_lines, fnv1a, lines, lines_in, write};
     use crate::plots::{Kind, Plot};
 
     fn ghost(name: &str, direct: bool) -> Plot {
@@ -394,7 +418,7 @@ mod tests {
     fn every_kind_has_lines_and_every_line_uses_only_what_its_kind_provides() {
         for kind in Kind::ALL {
             let lines = lines(kind);
-            assert!(lines.len() >= 4, "{kind:?} has only {} lines", lines.len());
+            assert!(lines.len() >= 8, "{kind:?} has only {} lines", lines.len());
             let provided = kind.placeholders();
             let unknown: Vec<_> = lines
                 .iter()
@@ -402,6 +426,49 @@ mod tests {
                 .filter(|placeholder| !provided.contains(placeholder))
                 .collect();
             assert_eq!(unknown, Vec::<&str>::new(), "{kind:?} cannot fill these");
+        }
+    }
+
+    #[test]
+    fn a_well_known_package_gets_its_own_line() {
+        let episode = write("shop-web", vec![ghost("left-pad", true)]);
+
+        assert!(episode.scenes[0].text.contains("2016"), "{episode:?}");
+        assert!(!episode.scenes[0].text.contains('{'), "{episode:?}");
+    }
+
+    #[test]
+    fn a_well_known_package_in_a_scene_without_its_own_line_gets_a_general_one() {
+        let episode = write("shop-web", vec![almost_ready("left-pad")]);
+
+        assert!(lines(Kind::AlmostReady).iter().any(|line| {
+            line.replace("{name}", "left-pad")
+                .replace("{version}", "0.4.2")
+                == episode.scenes[0].text
+        }));
+    }
+
+    #[test]
+    fn every_row_for_a_well_known_package_names_a_kind_and_uses_only_its_placeholders() {
+        let rows = lines_in(include_str!("lines/celebrities.txt"));
+        assert_eq!(
+            celebrity_lines().count(),
+            rows.len(),
+            "a row is missing a column"
+        );
+
+        for (name, slug, line) in celebrity_lines() {
+            let kind = Kind::ALL.into_iter().find(|kind| kind.slug() == slug);
+            let kind = kind.unwrap_or_else(|| panic!("{name}: no scene is called {slug}"));
+            let unknown: Vec<_> = placeholders(line)
+                .into_iter()
+                .filter(|placeholder| !kind.placeholders().contains(placeholder))
+                .collect();
+            assert_eq!(unknown, Vec::<&str>::new(), "{name} | {slug}");
+            assert!(
+                kind.placeholders().contains(&"name"),
+                "{slug} is not about a package"
+            );
         }
     }
 

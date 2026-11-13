@@ -5,11 +5,11 @@ Deadpan jokes about your dependencies. Every line is a true fact from the lockfi
 ```
 PREVIOUSLY ON shop-web…
 
-  left-pad 1.3.0 has been deprecated, and nobody has asked it to leave. The note on its door: "use String.prototype.padStart()"
-  request is deprecated and still installed. It left a note: "request has been deprecated, see https://github.com/request/request/issues/3142"
-  express 4.22.3 still thinks it is the latest. The family has not mentioned 5.3.0.
-  webpack is 1 major version behind. Nobody has told it about 5.112.2.
-  You invited 9 guests. 461 showed up.
+  left-pad is deprecated and still here. In 2016 it left npm for a few hours and builds around the world stopped. It knows what it is worth.
+  request retired in 2020 and is still installed. It was downloaded millions of times a week when it stopped. Old habits.
+  express 4.22.3 is 1 major version behind. Version 5 was about ten years in the making, so nobody here feels rushed.
+  webpack lives at 4.47.0. 5.112.2 sends postcards. They go unopened.
+  The guest list said 9 guests. The caterer counted 461.
 ```
 
 It is a toy. It is also, by accident, a readable summary of what is rotting in your `node_modules`.
@@ -145,6 +145,11 @@ The jokes live in plain text files under [`src/lines`](src/lines), one line per 
 - Keep it deadpan and safe to paste into a work chat.
 
 A test fails if a line uses a placeholder its scene does not provide.
+
+[`celebrities.txt`](src/lines/celebrities.txt) holds lines for packages most developers know by
+name (`package | scene | line`). They replace the general lines when a scene is about that
+package. They stick to public technical history that stays true whatever version is installed, and
+a line is removed without argument if the package's maintainers ask.
 
 ## License
 
