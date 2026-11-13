@@ -37,3 +37,4 @@ rules:
   self-repository:
     ignore:
       - drama.yml:38:15
+      - drama.yml:42:15

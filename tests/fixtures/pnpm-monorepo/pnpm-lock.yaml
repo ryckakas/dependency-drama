@@ -1,0 +1,113 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.6.3
+
+  packages/api:
+    dependencies:
+      lodash:
+        specifier: ^4.17.0
+        version: 4.17.21
+
+  packages/ui:
+    dependencies:
+      '@acme/api':
+        specifier: workspace:*
+        version: link:../api
+      '@scope/kit':
+        specifier: ^2.0.0
+        version: 2.0.0(react@18.3.1)
+      lodash:
+        specifier: ^3.10.0
+        version: 3.10.1
+      react:
+        specifier: ^18.3.0
+        version: 18.3.1
+      widget:
+        specifier: ^1.0.0
+        version: 1.0.0(react@18.3.1)
+    optionalDependencies:
+      fsevents:
+        specifier: ^2.3.0
+        version: 2.3.3
+
+packages:
+
+  '@scope/kit@2.0.0':
+    resolution: {integrity: sha512-kit==}
+    peerDependencies:
+      react: '>=18'
+      vue: ^3.0.0
+    peerDependenciesMeta:
+      vue:
+        optional: true
+
+  fsevents@2.3.3:
+    resolution: {integrity: sha512-fsevents==}
+    engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
+    os: [darwin]
+
+  js-tokens@4.0.0:
+    resolution: {integrity: sha512-tokens==}
+
+  lodash@3.10.1:
+    resolution: {integrity: sha512-lodash3==}
+
+  lodash@4.17.21:
+    resolution: {integrity: sha512-lodash4==}
+
+  loose-envify@1.4.0:
+    resolution: {integrity: sha512-envify==}
+    hasBin: true
+
+  react@18.3.1:
+    resolution: {integrity: sha512-react==}
+    engines: {node: '>=0.10.0'}
+
+  typescript@5.6.3:
+    resolution: {integrity: sha512-typescript==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
+  widget@1.0.0:
+    resolution: {integrity: sha512-widget==}
+    peerDependencies:
+      react: ^17.0.0
+
+snapshots:
+
+  '@scope/kit@2.0.0(react@18.3.1)':
+    dependencies:
+      react: 18.3.1
+
+  fsevents@2.3.3:
+    optional: true
+
+  js-tokens@4.0.0: {}
+
+  lodash@3.10.1: {}
+
+  lodash@4.17.21: {}
+
+  loose-envify@1.4.0:
+    dependencies:
+      js-tokens: 4.0.0
+
+  react@18.3.1:
+    dependencies:
+      loose-envify: 1.4.0
+
+  typescript@5.6.3: {}
+
+  widget@1.0.0(react@18.3.1):
+    dependencies:
+      react: 18.3.1

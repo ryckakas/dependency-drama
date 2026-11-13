@@ -7,7 +7,7 @@ branding:
 
 inputs:
   path:
-    description: The project directory that holds package-lock.json. Use the action once per directory.
+    description: The project directory that holds package-lock.json or pnpm-lock.yaml. Use the action once per directory.
     default: "."
   version:
     description: The release to install, such as 0.1.0. Skipped when dependency-drama is already on the PATH.
@@ -90,6 +90,10 @@ runs:
         work="$RUNNER_TEMP/dependency-drama"
         mkdir -p "$work/base"
         prefix="$(git -C "$PROJECT" rev-parse --show-prefix)"
+        lockfile="package-lock.json"
+        if [ ! -f "$PROJECT/$lockfile" ] && [ -f "$PROJECT/pnpm-lock.yaml" ]; then
+          lockfile="pnpm-lock.yaml"
+        fi
         arguments=("$PROJECT" --markdown)
         if [ "$OFFLINE" = "true" ]; then
           arguments+=(--offline)
@@ -97,11 +101,11 @@ runs:
 
         changed=false
         if [ -n "$BASE_SHA" ]; then
-          if gh api "repos/$GITHUB_REPOSITORY/contents/${prefix}package-lock.json?ref=$BASE_SHA" \
+          if gh api "repos/$GITHUB_REPOSITORY/contents/${prefix}${lockfile}?ref=$BASE_SHA" \
             -H "Accept: application/vnd.github.raw" \
-            > "$work/base/package-lock.json" 2> "$work/base-error"; then
+            > "$work/base/$lockfile" 2> "$work/base-error"; then
             arguments+=(--base "$work/base")
-            if ! cmp -s "$work/base/package-lock.json" "$PROJECT/package-lock.json"; then
+            if ! cmp -s "$work/base/$lockfile" "$PROJECT/$lockfile"; then
               changed=true
             fi
           elif grep -q "HTTP 404" "$work/base-error"; then
