@@ -2,11 +2,14 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+use serde::Serialize;
+
 use crate::date::Date;
 use crate::model::{Project, major};
 use crate::registry::RegistryFacts;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", content = "facts", rename_all = "snake_case")]
 pub(crate) enum Plot {
     Entourage {
         direct: usize,

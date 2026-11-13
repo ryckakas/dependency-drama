@@ -11,7 +11,14 @@ const SCENES_PER_KIND: usize = 2;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Episode {
     pub(crate) project: String,
-    pub(crate) scenes: Vec<String>,
+    pub(crate) scenes: Vec<Scene>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Scene {
+    pub(crate) text: String,
+    /// The fact the line narrates; a quiet episode's only scene has none.
+    pub(crate) plot: Option<Plot>,
 }
 
 pub(crate) fn write(project: &str, mut plots: Vec<Plot>) -> Episode {
@@ -23,16 +30,23 @@ pub(crate) fn write(project: &str, mut plots: Vec<Plot>) -> Episode {
             cast.push(plot);
         }
     }
-    let mut scenes: Vec<String> = Vec::new();
+    let mut scenes: Vec<Scene> = Vec::new();
     for plot in cast {
         let line = pick(&lines(plot.kind()), seed(project, plot), |line| {
-            !scenes.contains(&fill(line, plot))
+            let text = fill(line, plot);
+            scenes.iter().all(|scene| scene.text != text)
         });
-        scenes.push(fill(line, plot));
+        scenes.push(Scene {
+            text: fill(line, plot),
+            plot: Some(plot.clone()),
+        });
     }
     if scenes.is_empty() {
         let quiet = lines_in(include_str!("lines/quiet.txt"));
-        scenes.push(pick(&quiet, fnv1a(project), |_| true).to_owned());
+        scenes.push(Scene {
+            text: pick(&quiet, fnv1a(project), |_| true).to_owned(),
+            plot: None,
+        });
     }
     Episode {
         project: project.to_owned(),
@@ -139,7 +153,10 @@ mod tests {
         let episode = write("calm", Vec::new());
 
         assert_eq!(episode.scenes.len(), 1);
-        assert!(lines_in(include_str!("lines/quiet.txt")).contains(&episode.scenes[0].as_str()));
+        assert_eq!(episode.scenes[0].plot, None);
+        assert!(
+            lines_in(include_str!("lines/quiet.txt")).contains(&episode.scenes[0].text.as_str())
+        );
     }
 
     #[test]
@@ -147,9 +164,10 @@ mod tests {
         let episode = write("shop-web", vec![almost_ready("axios")]);
 
         assert_eq!(episode.scenes.len(), 1);
-        assert!(episode.scenes[0].contains("axios"));
-        assert!(episode.scenes[0].contains("0.4.2"));
-        assert!(!episode.scenes[0].contains('{'));
+        assert_eq!(episode.scenes[0].plot, Some(almost_ready("axios")));
+        assert!(episode.scenes[0].text.contains("axios"));
+        assert!(episode.scenes[0].text.contains("0.4.2"));
+        assert!(!episode.scenes[0].text.contains('{'));
     }
 
     #[test]
@@ -164,9 +182,18 @@ mod tests {
         let episode = write("shop\n\n# web\u{1b}", vec![plot]);
 
         assert_eq!(episode.project, "shop # web");
-        assert!(episode.scenes[0].contains("old ## heading"), "{episode:?}");
-        assert!(episode.scenes[0].contains("[31mred alert"), "{episode:?}");
-        assert!(!episode.scenes[0].contains(char::is_control), "{episode:?}");
+        assert!(
+            episode.scenes[0].text.contains("old ## heading"),
+            "{episode:?}"
+        );
+        assert!(
+            episode.scenes[0].text.contains("[31mred alert"),
+            "{episode:?}"
+        );
+        assert!(
+            !episode.scenes[0].text.contains(char::is_control),
+            "{episode:?}"
+        );
     }
 
     #[test]
@@ -230,14 +257,14 @@ mod tests {
 
         assert_eq!(episode.scenes.len(), SCENES);
         assert!(
-            episode.scenes[0].contains("widget"),
+            episode.scenes[0].text.contains("widget"),
             "the feud opens: {episode:?}"
         );
         assert!(
             !episode
                 .scenes
                 .iter()
-                .any(|scene| scene.contains("npm fund"))
+                .any(|scene| scene.text.contains("npm fund"))
         );
     }
 
@@ -274,7 +301,7 @@ mod tests {
                 .collect::<Vec<_>>()
                 .join(" ")
         };
-        assert_ne!(shape(&scenes[0]), shape(&scenes[1]));
+        assert_ne!(shape(&scenes[0].text), shape(&scenes[1].text));
     }
 
     #[test]
@@ -284,7 +311,7 @@ mod tests {
             vec![ghost("deep", false), ghost("request", true)],
         );
 
-        assert!(episode.scenes[0].contains("request"));
+        assert!(episode.scenes[0].text.contains("request"));
     }
 
     #[test]

@@ -29,6 +29,7 @@ cargo install --git https://github.com/ryckakas/dependency-drama
 dependency-drama              # the project in the current directory
 dependency-drama path/to/app  # another project, or a package-lock.json
 dependency-drama --markdown   # Markdown, for a pull request comment
+dependency-drama --json       # JSON, for a tool that writes its own comment
 dependency-drama --offline    # ask the npm registry nothing
 ```
 
@@ -47,6 +48,31 @@ dependency-drama --offline    # ask the npm registry nothing
 | Night visitor | Packages that run a script on install |
 
 An episode has five scenes at most. The same lockfile always gives the same episode.
+
+## JSON
+
+`--json` prints the same episode as data, so another tool can lay out the comment itself:
+
+```json
+{
+  "schema": 1,
+  "project": "shop-web",
+  "scenes": [
+    {
+      "kind": "time_capsule",
+      "facts": { "name": "webpack", "version": "4.47.0", "latest": "5.112.2", "majors_behind": 1 },
+      "text": "webpack is 1 major version behind. Nobody has told it about 5.112.2.",
+      "markdown": "webpack is 1 major version behind. Nobody has told it about 5.112.2."
+    }
+  ]
+}
+```
+
+`kind` is the scene from the table above in snake case, or `quiet` (without `facts`) when the
+lockfile gave the writers nothing. `text` is the line as the terminal shows it; `markdown` is the
+same line escaped, safe to paste into a comment. The values in `facts` come straight from the
+lockfile and the registry and are **not** escaped. `schema` goes up when a field is removed or
+changes meaning; new fields and kinds may appear without it.
 
 ## What leaves your machine
 

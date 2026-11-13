@@ -30,6 +30,10 @@ struct Arguments {
     #[arg(long)]
     markdown: bool,
 
+    /// Write JSON: each scene with its kind, the facts behind it, and its line.
+    #[arg(long, conflicts_with = "markdown")]
+    json: bool,
+
     /// Ask the npm registry nothing.
     ///
     /// Without this, the names of direct dependencies installed from registry.npmjs.org are
@@ -68,7 +72,9 @@ fn run(
         plots.extend(plots::from_registry(&project, &facts, today));
     }
     let episode = episode::write(&project.name, plots);
-    Ok(if arguments.markdown {
+    Ok(if arguments.json {
+        render::json(&episode)
+    } else if arguments.markdown {
         render::markdown(&episode)
     } else {
         render::terminal(&episode)
@@ -84,6 +90,8 @@ fn print(output: &str) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+
+    use clap::Parser;
 
     use super::{Arguments, run};
     use crate::date::date;
@@ -112,6 +120,7 @@ mod tests {
         Arguments {
             path: PathBuf::from("tests/fixtures/shop-web"),
             markdown,
+            json: false,
             offline: false,
         }
     }
@@ -142,6 +151,35 @@ mod tests {
         let unplugged = run(&arguments(false), Some(&Unplugged), today).expect("episode");
 
         assert_eq!(offline, unplugged);
+    }
+
+    #[test]
+    fn json_is_chosen_by_the_flag_and_tells_the_same_episode_as_the_terminal() {
+        let today = date(2026, 11, 13);
+        let terminal = run(&arguments(false), None, today).expect("episode");
+        let json = Arguments {
+            json: true,
+            ..arguments(false)
+        };
+
+        let output = run(&json, None, today).expect("episode");
+
+        let document: serde_json::Value = serde_json::from_str(&output).expect("valid JSON");
+        let scenes = document["scenes"].as_array().expect("scenes");
+        assert_eq!(document["project"], "shop-web");
+        assert_eq!(scenes.len(), 5);
+        for scene in scenes {
+            let text = scene["text"].as_str().expect("text");
+            assert!(terminal.contains(text), "{text}");
+            assert!(scene["kind"].is_string() && scene["facts"].is_object());
+        }
+    }
+
+    #[test]
+    fn json_and_markdown_cannot_be_asked_for_together() {
+        let parsed = Arguments::try_parse_from(["dependency-drama", "--json", "--markdown"]);
+
+        assert!(parsed.is_err());
     }
 
     #[test]
