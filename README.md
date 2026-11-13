@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/cover.jpg" alt="dependency-drama: deadpan jokes about your dependencies" width="820">
+</p>
+
 # dependency-drama
 
 Deadpan jokes about your dependencies. Every line is a true fact from the lockfile.
