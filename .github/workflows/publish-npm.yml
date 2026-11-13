@@ -1,0 +1,56 @@
+name: Publish to npm
+
+# Stages the npm package that the release workflow built and attached to a GitHub release. A
+# staged version is not installable until a maintainer approves it on npmjs.com with 2FA, so
+# neither this workflow nor its credentials can put a version on npm alone. dist's own npm job
+# cannot do this: it runs `npm publish` on Node 20, and staging needs npm 11.15 or newer.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release to stage, e.g. v0.1.0"
+        required: true
+        type: string
+      first_publish:
+        description: "Create the package on npm, which has never seen it, with NPM_TOKEN"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  stage:
+    name: npm stage publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      # Node 24 has shipped npm 11.19 or newer since 24.22.
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Download the npm package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern dependency-drama-npm-package.tar.gz
+
+      # Trusted publishing is set up on the package's page on npmjs.com, which exists only after
+      # the first version, so that one is staged with a token. npm prefers a configured token
+      # over trusted publishing, so later runs must not have one at all.
+      - name: Stage with NPM_TOKEN
+        if: ${{ inputs.first_publish }}
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > "$HOME/.npmrc"
+          npm stage publish ./dependency-drama-npm-package.tar.gz
+
+      - name: Stage through trusted publishing
+        if: ${{ !inputs.first_publish }}
+        run: npm stage publish ./dependency-drama-npm-package.tar.gz
