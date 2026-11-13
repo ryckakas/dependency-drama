@@ -58,6 +58,9 @@ The action writes the episode to the job summary of every run. On a pull request
 the lockfile it also posts the episode as one comment, including what the pull request did,
 and updates that comment on later pushes. When the pull request leaves "Previously on" as it
 was, the comment folds that part away, so what the pull request did is what a reviewer sees.
+What the pull request did is measured the way GitHub's own diff measures it: from the tip of the
+base branch for the default checkout (GitHub's merge commit), and from the commit the pull request
+branched off when a workflow checks out the pull request's head.
 
 ```yaml
 on: pull_request

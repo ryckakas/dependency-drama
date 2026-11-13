@@ -28,5 +28,5 @@ rules:
   # drama.yml runs the action from its own checkout with `./`, which is the point of that workflow.
   self-repository:
     ignore:
-      - drama.yml:38:15
-      - drama.yml:42:15
+      - drama.yml:46:15
+      - drama.yml:51:15

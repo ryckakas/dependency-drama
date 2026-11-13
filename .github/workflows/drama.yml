@@ -14,8 +14,14 @@ concurrency:
 
 jobs:
   episode:
-    name: Episode
+    name: Episode (${{ matrix.checkout }})
     runs-on: ubuntu-latest
+    # The default checkout of a pull request is GitHub's merge commit; some workflows check out the
+    # pull request's head instead, and the action finds its base differently for each.
+    strategy:
+      fail-fast: false
+      matrix:
+        checkout: [merge, head]
     permissions:
       contents: read
       # The comment on a pull request that changes the fixture's lockfile.
@@ -24,6 +30,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ matrix.checkout == 'head' && github.event.pull_request.head.sha || '' }}
 
       - name: Install stable Rust
         run: |
@@ -35,10 +42,13 @@ jobs:
       - name: Build this checkout's binary
         run: cargo install --path . --locked --debug
 
+      # Only one of the two may own the comment for each directory.
       - uses: ./
         with:
           path: tests/fixtures/shop-web
+          comment: ${{ matrix.checkout == 'merge' }}
 
       - uses: ./
         with:
           path: tests/fixtures/pnpm-monorepo
+          comment: ${{ matrix.checkout == 'merge' }}
