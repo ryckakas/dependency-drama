@@ -9,11 +9,27 @@ const SCENES: usize = 5;
 const SCENES_PER_KIND: usize = 2;
 /// Scenes about the change under review come on top of the five, so they never push the rest out.
 const SCENES_TONIGHT: usize = 3;
+/// Changes named in the closing line before the rest are only counted.
+const UNTOLD_NAMED: usize = 8;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Episode {
     pub(crate) project: String,
     pub(crate) scenes: Vec<Scene>,
+    /// What the change under review did that had no room for a scene. It is still named, since a
+    /// reader takes a missing line for something that did not happen.
+    pub(crate) untold: Vec<Plot>,
+}
+
+impl Episode {
+    pub(crate) fn untold_line(&self) -> Option<String> {
+        let mut notes: Vec<String> = self.untold.iter().take(UNTOLD_NAMED).map(note).collect();
+        let more = self.untold.len().saturating_sub(UNTOLD_NAMED);
+        if more > 0 {
+            notes.push(format!("and {more} more"));
+        }
+        (!notes.is_empty()).then(|| format!("Also tonight: {}.", notes.join(", ")))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,6 +56,12 @@ pub(crate) fn write(project: &str, mut plots: Vec<Plot>) -> Episode {
             cast.push(plot);
         }
     }
+    let mut untold: Vec<Plot> = plots
+        .iter()
+        .filter(|plot| plot.kind().is_tonight() && !cast.contains(plot))
+        .cloned()
+        .collect();
+    untold.sort_by(|a, b| (a.kind(), a.name()).cmp(&(b.kind(), b.name())));
     cast.sort_by_key(|plot| plot.kind().is_tonight());
     let mut scenes: Vec<Scene> = Vec::new();
     for plot in cast {
@@ -63,7 +85,21 @@ pub(crate) fn write(project: &str, mut plots: Vec<Plot>) -> Episode {
     Episode {
         project: project.to_owned(),
         scenes,
+        untold,
     }
+}
+
+fn note(plot: &Plot) -> String {
+    let note = match plot {
+        Plot::NewArrival { name, version } => format!("{name} {version} arrived"),
+        Plot::WrittenOut { name, version } => format!("{name} {version} written out"),
+        Plot::Recast { name, from, to, .. } => format!("{name} {from} recast as {to}"),
+        other => other
+            .name()
+            .unwrap_or_else(|| other.kind().slug())
+            .to_owned(),
+    };
+    tidy(&note)
 }
 
 fn has_room(cast: &[&Plot], kind: Kind) -> bool {
@@ -362,6 +398,43 @@ mod tests {
 
         let tonight = episode.scenes.iter().filter(|scene| scene.is_tonight());
         assert_eq!(tonight.count(), SCENES_TONIGHT);
+    }
+
+    #[test]
+    fn changes_without_a_scene_are_still_named_in_one_line() {
+        let mut plots: Vec<_> = ["dayjs", "ms"].map(arrival).to_vec();
+        plots.push(Plot::Recast {
+            name: "eslint-plugin-unicorn".to_owned(),
+            from: "61.0.2".to_owned(),
+            to: "62.0.0".to_owned(),
+            moved_in: 1,
+            used_in: 1,
+        });
+        plots.push(Plot::WrittenOut {
+            name: "@types/dompurify".to_owned(),
+            version: "3.2.0".to_owned(),
+        });
+
+        let episode = write("shop-web", plots);
+
+        assert_eq!(
+            episode.untold_line().as_deref(),
+            Some("Also tonight: @types/dompurify 3.2.0 written out.")
+        );
+        assert_eq!(write("shop-web", vec![arrival("a")]).untold_line(), None);
+    }
+
+    #[test]
+    fn a_long_list_of_changes_without_a_scene_names_eight_and_counts_the_rest() {
+        let names: Vec<String> = (0..20).map(|index| format!("p{index:02}")).collect();
+        let plots: Vec<_> = names.iter().map(|name| arrival(name)).collect();
+
+        let episode = write("shop-web", plots);
+
+        assert_eq!(episode.untold.len(), 18);
+        let line = episode.untold_line().expect("a line");
+        assert_eq!(line.matches(" arrived").count(), 8, "{line}");
+        assert!(line.ends_with(", and 10 more."), "{line}");
     }
 
     #[test]

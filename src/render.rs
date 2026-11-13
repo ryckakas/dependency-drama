@@ -20,6 +20,9 @@ pub(crate) fn terminal(episode: &Episode) -> String {
     for scene in tonight {
         push_line(&mut text, "  ", &scene.text);
     }
+    if let Some(line) = episode.untold_line() {
+        push_line(&mut text, "  ", &line);
+    }
     text
 }
 
@@ -49,6 +52,9 @@ pub(crate) fn markdown(episode: &Episode) -> String {
     for scene in tonight {
         push_line(&mut text, "- ", &escape(&scene.text));
     }
+    if let Some(line) = episode.untold_line() {
+        push_line(&mut text, "- ", &escape(&line));
+    }
     text.push_str("\n<sub>Every line is a true fact from the lockfile, narrated by ");
     text.push_str("[dependency-drama](");
     text.push_str(HOMEPAGE);
@@ -64,6 +70,8 @@ struct Document<'episode> {
     schema: u32,
     project: &'episode str,
     scenes: Vec<SceneDocument<'episode>>,
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    untold: &'episode [Plot],
 }
 
 #[derive(Serialize)]
@@ -86,6 +94,7 @@ pub(crate) fn json(episode: &Episode) -> String {
         schema: SCHEMA,
         project: &episode.project,
         scenes: episode.scenes.iter().map(scene_document).collect(),
+        untold: &episode.untold,
     };
     let mut text = serde_json::to_string_pretty(&document).unwrap_or_default();
     text.push('\n');
@@ -134,6 +143,7 @@ mod tests {
         Episode {
             project: "shop-web".to_owned(),
             scenes: scenes.iter().map(|text| scene(text, None)).collect(),
+            untold: Vec::new(),
         }
     }
 
@@ -159,6 +169,7 @@ mod tests {
         let episode = Episode {
             project: "shop-web".to_owned(),
             scenes: vec![scene("widget wanted react ^18_x.", Some(feud))],
+            untold: Vec::new(),
         };
 
         assert_eq!(
@@ -192,6 +203,7 @@ mod tests {
         let episode = Episode {
             project: "shop-web".to_owned(),
             scenes: vec![scene("webpack is behind.", Some(capsule))],
+            untold: Vec::new(),
         };
 
         let scenes = parsed(&episode)["scenes"].clone();
@@ -247,7 +259,35 @@ mod tests {
                 scene("Dinner was tense.", None),
                 scene("A stranger arrives: left-pad 1.3.0.", Some(arrival)),
             ],
+            untold: Vec::new(),
         }
+    }
+
+    fn with_an_untold_departure() -> Episode {
+        Episode {
+            untold: vec![Plot::WrittenOut {
+                name: "@types/dompurify".to_owned(),
+                version: "3.2.0".to_owned(),
+            }],
+            ..with_an_arrival()
+        }
+    }
+
+    #[test]
+    fn every_layout_names_the_changes_that_got_no_scene() {
+        let episode = with_an_untold_departure();
+
+        assert!(terminal(&episode).ends_with(
+            "  A stranger arrives: left-pad 1.3.0.\n  Also tonight: @types/dompurify 3.2.0 written out.\n"
+        ));
+        assert!(markdown(&episode).contains(
+            "- A stranger arrives: left-pad 1.3.0.\n- Also tonight: @\u{200b}types/dompurify 3.2.0 written out.\n\n<sub>"
+        ));
+        assert_eq!(
+            parsed(&episode)["untold"],
+            json!([{"kind": "written_out", "facts": {"name": "@types/dompurify", "version": "3.2.0"}}])
+        );
+        assert_eq!(parsed(&with_an_arrival()).get("untold"), None);
     }
 
     #[test]

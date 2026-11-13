@@ -117,7 +117,8 @@ get one step each, and one comment each:
 | Night visitor | Packages that run a script on install |
 
 With `--base`, pointing at the same project before a change (a directory or its lockfile),
-up to three more scenes follow under "Tonight":
+up to three more scenes follow under "Tonight", and one closing line names any change left without a
+scene:
 
 | Scene | The fact behind it |
 |---|---|
@@ -154,6 +155,10 @@ lockfile gave the writers nothing. `text` is the line as the terminal shows it; 
 same line escaped, safe to paste into a comment. The values in `facts` come straight from the
 lockfile and the registry and are **not** escaped. `schema` goes up when a field is removed or
 changes meaning; new fields and kinds may appear without it.
+
+`untold`, present only when it has entries, lists what the change did that had no room for a
+scene, each as `kind` and `facts`. The terminal and Markdown layouts name those in one closing
+line, "Also tonight: …", so no change goes unmentioned.
 
 ## npm and pnpm
 
