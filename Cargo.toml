@@ -6,6 +6,7 @@ edition = "2024"
 rust-version = "1.100"
 license = "MIT"
 repository = "https://github.com/ryckakas/dependency-drama"
+homepage = "https://github.com/ryckakas/dependency-drama#readme"
 readme = "README.md"
 keywords = ["dependencies", "npm", "lockfile", "humor", "cli"]
 categories = ["command-line-utilities", "development-tools"]
