@@ -169,10 +169,33 @@ fn lines_for(plot: &Plot) -> Vec<&'static str> {
         .map(|(_, _, line)| line)
         .collect();
     if own.is_empty() {
-        lines(plot.kind())
+        scaled(&lines(plot.kind()), plot.magnitude())
     } else {
         own
     }
+}
+
+/// The lines of the highest `[N+]` tier the fact reaches, or the unmarked lines below every tier.
+fn scaled(lines: &[&'static str], magnitude: Option<u64>) -> Vec<&'static str> {
+    let reached = lines
+        .iter()
+        .filter_map(|line| tier(line))
+        .map(|(at_least, _)| at_least)
+        .filter(|at_least| magnitude.is_some_and(|magnitude| magnitude >= *at_least))
+        .max();
+    lines
+        .iter()
+        .filter_map(|line| match tier(line) {
+            Some((at_least, text)) => (Some(at_least) == reached).then_some(text),
+            None => reached.is_none().then_some(*line),
+        })
+        .collect()
+}
+
+/// `[5+] text` is a line for facts of size 5 or more.
+fn tier(line: &'static str) -> Option<(u64, &'static str)> {
+    let (at_least, text) = line.strip_prefix('[')?.split_once("+] ")?;
+    Some((at_least.parse().ok()?, text))
 }
 
 /// Rows of `package | scene | line`.
@@ -222,7 +245,10 @@ fn fnv1a(text: &str) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{Episode, SCENES, SCENES_TONIGHT, celebrity_lines, fnv1a, lines, lines_in, write};
+    use super::{
+        Episode, SCENES, SCENES_TONIGHT, celebrity_lines, fnv1a, lines, lines_for, lines_in,
+        scaled, tier, write,
+    };
     use crate::plots::{Kind, Plot};
 
     fn ghost(name: &str, direct: bool) -> Plot {
@@ -566,10 +592,51 @@ mod tests {
     }
 
     #[test]
+    fn every_tier_of_every_kind_has_lines_to_choose_from() {
+        let tiers = Kind::ALL.into_iter().flat_map(|kind| {
+            let marked = lines(kind).into_iter().filter_map(tier);
+            std::iter::once((kind, None)).chain(marked.map(move |(at, _)| (kind, Some(at))))
+        });
+        for (kind, magnitude) in tiers {
+            let chosen = scaled(&lines(kind), magnitude);
+            assert!(chosen.len() >= 3, "{kind:?} at {magnitude:?}: {chosen:?}");
+            assert!(chosen.iter().all(|line| !line.starts_with('[')), "{kind:?}");
+        }
+        for kind in Kind::ALL {
+            let unmarked = scaled(&lines(kind), None).len();
+            assert!(unmarked >= 6, "{kind:?} has only {unmarked} unmarked lines");
+        }
+    }
+
+    #[test]
+    fn a_bigger_fact_gets_the_lines_written_for_its_size() {
+        let lines = ["small", "[3+] middle", "[10+] large", "[10+] huge"];
+
+        assert_eq!(scaled(&lines, None), ["small"]);
+        assert_eq!(scaled(&lines, Some(2)), ["small"]);
+        assert_eq!(scaled(&lines, Some(3)), ["middle"]);
+        assert_eq!(scaled(&lines, Some(9)), ["middle"]);
+        assert_eq!(scaled(&lines, Some(18)), ["large", "huge"]);
+    }
+
+    #[test]
+    fn an_eighteen_majors_gap_is_not_told_like_a_one_major_gap() {
+        let capsule = |majors_behind| Plot::TimeCapsule {
+            name: "eslint-plugin-unicorn".to_owned(),
+            version: "43.0.0".to_owned(),
+            latest: "61.0.2".to_owned(),
+            majors_behind,
+        };
+        let one = lines_for(&capsule(1));
+        let eighteen = lines_for(&capsule(18));
+
+        assert!(one.iter().all(|line| !eighteen.contains(line)));
+    }
+
+    #[test]
     fn every_kind_has_lines_and_every_line_uses_only_what_its_kind_provides() {
         for kind in Kind::ALL {
             let lines = lines(kind);
-            assert!(lines.len() >= 8, "{kind:?} has only {} lines", lines.len());
             let provided = kind.placeholders();
             let unknown: Vec<_> = lines
                 .iter()

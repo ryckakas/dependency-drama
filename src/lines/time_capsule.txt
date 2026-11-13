@@ -1,9 +1,14 @@
-{name} is {majors} behind. Nobody has told it about {latest}.
-{name} {version} still thinks it is the latest. The family has not mentioned {latest}.
-The world moved on to {name} {latest}. This project stayed home with {version}.
-{name} is frozen at {version}, {majors} behind. The family is worried.
-{name} {latest} exists. In this house, the calendar still says {version}.
+# A line starting with [N+] is for a dependency N or more major versions behind, and replaces the
+# unmarked lines once a dependency gets there.
+{name} {version} is {majors} behind. Nobody on set has told it about {latest}; the writers are saving that for the finale.
 {name} lives at {version}. {latest} sends postcards. They go unopened.
-{name} is {majors} behind and insists that {version} was a very good year.
-{latest} is out. {name} is still wearing {version}.
-{name} {version} and {latest} are {majors} apart. Nobody wants to be the one to bring it up.
+{latest} is out. {name} is still wearing {version}, and wardrobe has stopped asking.
+{name} {version} still thinks it is the latest. The cast has agreed not to mention {latest}.
+{name} is {majors} behind {latest}. It calls this a period piece.
+{name} {version} is {majors} behind. {latest} was offered the part and is still waiting for the call.
+[3+] {name} {version} is {majors} behind. It is not out of date, it is from a different era, and the costumes prove it.
+[3+] {name} is stuck at {version}, {majors} behind {latest}. Every season the writers plan its upgrade arc, and every season it gets pushed.
+[3+] {name} {version} and {latest} are {majors} apart: the same character, played by actors who have never met.
+[10+] {name} is {majors} behind. {version} is no longer a version, it is a historical drama.
+[10+] {name} {version} is {majors} behind {latest}. Somewhere, a documentary about it is in production.
+[10+] {name} {version} is {majors} behind {latest}. The show is now, officially, a period piece with a live audience.

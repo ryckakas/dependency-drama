@@ -10,10 +10,10 @@ Deadpan jokes about your dependencies. Every line is a true fact from the lockfi
 PREVIOUSLY ON shop-web…
 
   left-pad is deprecated and still here. In 2016 it left npm for a few hours and builds around the world stopped. It knows what it is worth.
-  request retired in 2020 and is still installed. It was downloaded millions of times a week when it stopped. Old habits.
   express 4.22.3 is 1 major version behind. Version 5 was about ten years in the making, so nobody here feels rushed.
-  webpack lives at 4.47.0. 5.112.2 sends postcards. They go unopened.
-  The guest list said 9 guests. The caterer counted 461.
+  The show was pitched with 9 guests. It now employs 461 and is, technically, a small town.
+  esbuild 0.19.12 is still listed as in development. So, by extension, is everything built on it.
+  A donation link for 46 packages runs in the end credits. The end credits are always skipped. (npm fund)
 ```
 
 It is a toy. It is also, by accident, a readable summary of what is rotting in your `node_modules`.
@@ -170,8 +170,8 @@ differ between a CI checkout and a local clone.
     {
       "kind": "time_capsule",
       "facts": { "name": "webpack", "version": "4.47.0", "latest": "5.112.2", "majors_behind": 1 },
-      "text": "webpack is 1 major version behind. Nobody has told it about 5.112.2.",
-      "markdown": "webpack is 1 major version behind. Nobody has told it about 5.112.2."
+      "text": "webpack lives at 4.47.0. 5.112.2 sends postcards. They go unopened.",
+      "markdown": "webpack lives at 4.47.0. 5.112.2 sends postcards. They go unopened."
     }
   ]
 }
@@ -224,6 +224,9 @@ The jokes live in plain text files under [`src/lines`](src/lines), one line per 
 
 - The joke is on the package or on the project, never on a person. Maintainers owe nobody anything.
 - Keep it deadpan and safe to paste into a work chat.
+
+Some scenes scale: a row marked `[5+]` is for facts of at least that size, so a dependency 18
+major versions behind is not told like one 1 behind.
 
 A test fails if a line uses a placeholder its scene does not provide.
 [CONTRIBUTING.md](CONTRIBUTING.md) lists the placeholders of every scene.

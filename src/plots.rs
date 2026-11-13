@@ -90,7 +90,8 @@ pub(crate) enum Kind {
 const ENTOURAGE_PER_DIRECT: usize = 20;
 const CLONES_OF_ANYTHING: usize = 4;
 const MISSING_AFTER_YEARS: i64 = 3;
-const MESSAGE_LENGTH: usize = 110;
+/// Short enough to quote in the middle of a line and still end on the joke.
+pub(crate) const MESSAGE_LENGTH: usize = 80;
 
 impl Plot {
     pub(crate) fn kind(&self) -> Kind {
@@ -144,6 +145,19 @@ impl Plot {
             Self::Clones { versions, .. } => 40 + (*versions as u64).min(9),
             Self::CollectionPlate { .. } | Self::NightVisitor { .. } => 30,
         }
+    }
+
+    /// How big the fact is, for the kinds whose lines change with it: majors behind, versions
+    /// installed, years unchanged, packages per direct dependency.
+    pub(crate) fn magnitude(&self) -> Option<u64> {
+        let magnitude = match self {
+            Self::TimeCapsule { majors_behind, .. } => *majors_behind,
+            Self::Clones { versions, .. } => *versions as u64,
+            Self::MissingPerson { years, .. } => years.unsigned_abs(),
+            Self::Entourage { direct, installed } => (installed / direct.max(&1)) as u64,
+            _ => return None,
+        };
+        Some(magnitude)
     }
 
     /// A sentence told after the line, for a fact no line could know to mention.
@@ -553,7 +567,7 @@ fn missing_person(name: &str, modified: &str, today: Date) -> Option<Plot> {
 mod tests {
     use std::collections::HashMap;
 
-    use super::{Kind, Plot, from_registry, offline, since};
+    use super::{Kind, MESSAGE_LENGTH, Plot, from_registry, offline, since};
     use crate::date::date;
     use crate::model::{Package, Peer, Project, package};
     use crate::registry::RegistryFacts;
@@ -690,11 +704,12 @@ mod tests {
 
     #[test]
     fn a_long_or_missing_deprecation_message_stays_quotable() {
+        let limit = MESSAGE_LENGTH;
         assert_eq!(ghost_message(""), "no reason given");
-        assert_eq!(ghost_message(&"x".repeat(110)).chars().count(), 110);
+        assert_eq!(ghost_message(&"x".repeat(limit)).chars().count(), limit);
         assert_eq!(
-            ghost_message(&"x".repeat(111)),
-            format!("{}…", "x".repeat(110))
+            ghost_message(&"x".repeat(limit + 1)),
+            format!("{}…", "x".repeat(limit))
         );
     }
 
@@ -704,7 +719,7 @@ mod tests {
             ghost_message(
                 "uuid@10 and below is no longer supported. For ESM codebases, update to uuid@latest. For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028)."
             ),
-            "uuid@10 and below is no longer supported. For ESM codebases, update to uuid@latest."
+            "uuid@10 and below is no longer supported."
         );
         assert_eq!(
             ghost_message(
@@ -718,14 +733,14 @@ mod tests {
     fn a_long_message_without_a_sentence_that_fits_is_cut_between_words() {
         assert_eq!(
             ghost_message(&"word ".repeat(30)),
-            format!("{}…", "word ".repeat(22).trim_end())
+            format!("{}…", "word ".repeat(MESSAGE_LENGTH.div_ceil(5)).trim_end())
         );
     }
 
     #[test]
     fn a_sentence_or_a_word_ending_exactly_at_the_limit_is_kept_whole() {
-        let sentence = format!("{}.", "x".repeat(109));
-        let word = "x".repeat(110);
+        let sentence = format!("{}.", "x".repeat(MESSAGE_LENGTH - 1));
+        let word = "x".repeat(MESSAGE_LENGTH);
 
         assert_eq!(ghost_message(&format!("{sentence} More.")), sentence);
         assert_eq!(ghost_message(&format!("{word} more")), format!("{word}…"));

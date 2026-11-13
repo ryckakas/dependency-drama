@@ -1,8 +1,8 @@
-A stranger arrives: {name} {version}. Nobody has asked where it came from.
-{name} joins the cast at {version}. The others have been told to be nice.
-{name} {version} walks into the manifest as if it had always been there.
-New in town: {name} {version}. It says it is only here for one feature.
-{name} {version} has moved in. It has not said how long it plans to stay.
-{name} {version} is new here. It has already been given a key.
+Joining the cast this week: {name} {version}. Its agent promised it would only be in one scene.
+{name} {version} arrives as a guest star. Guest stars have a way of becoming regulars.
+{name} {version} is new on set. It already has a dressing room and a key to craft services.
 Introducing {name} {version}. Everyone is pretending they read its README.
-{name} arrives at {version}. Nobody has asked what is in the suitcase.
+{name} {version} joins the cast. Nobody has asked what it brought in its trailer.
+{name} {version} has been cast. Its contract has no end date, as usual.
+Please welcome {name} {version}, here for one feature. The writers are already planning its spin-off.
+A new face on set: {name} {version}. The rest of the cast has been told to be nice and to check its dependencies.

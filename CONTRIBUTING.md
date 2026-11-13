@@ -25,6 +25,16 @@ with `#` is a comment. Facts go in with `{placeholders}`:
 `cargo test` fails if a line uses a placeholder its scene does not provide, or if the same line is
 written twice.
 
+Four scenes scale. A row starting with `[N+]` is for facts of at least that size, and once a fact
+reaches it, those rows replace the unmarked ones: an 18-majors gap should not read like a 1-major
+gap. The size is majors behind in `time_capsule.txt`, versions in `clones.txt`, years in
+`missing_person.txt`, and installed packages per direct dependency in `entourage.txt`. Every tier
+needs at least three lines.
+
+In `ghost.txt`, `{message}` is the start of the deprecation notice, at most 80 characters, cut
+to whole sentences where it can be. Put it before the joke, so the scene ends on the joke and not
+on someone else's text.
+
 ### What makes a line fit
 
 - **It is true for every project the scene fires on.** The placeholders are the only facts the
@@ -34,6 +44,10 @@ written twice.
   anything. A package that has not changed in years may simply be finished.
 - **Deadpan, and safe to paste into a work chat.**
 - **One or two sentences.** It is read in a pull request comment.
+- **The second sentence turns.** If it only restates the first, or would fit any package in any
+  scene, it is not the joke yet.
+- **One frame: a TV show.** Cast, set, script, writers, credits, ratings. The episode opens with
+  "Previously on", so the lines stay on the same show.
 
 ### Lines for well-known packages
 

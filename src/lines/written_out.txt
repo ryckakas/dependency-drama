@@ -1,8 +1,8 @@
-{name} has been written out of the show. Its last appearance was at {version}.
-{name} {version} left without saying goodbye. The manifest does not mention it any more.
+{name} {version} has been written out. Its storyline will be wrapped up in one line of dialogue, if at all.
+{name} {version} left without saying goodbye. The manifest does not mention it any more, and neither does anyone else.
 We say farewell to {name} {version}. It may return in a flashback, if another package still needs it.
 {name} is gone. Somebody deleted one line, and {version} went with it.
 The part of {name} has been cut at {version}. No recast is planned.
-{name} {version} has left the building. Its line in the manifest is gone.
+{name} {version} has been cancelled. Fans have been asked to stay calm and run the tests.
 No more {name}. It was {version} to the end.
 {name} was let go at {version}. The project says it is fine. It keeps looking at the diff.

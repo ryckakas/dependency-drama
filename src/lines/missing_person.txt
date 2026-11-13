@@ -1,8 +1,11 @@
-{name} has not been heard from since {year}. Its place at the table is still set.
-Nobody has seen {name} change in {years} years. The project still leaves the porch light on.
-{name} went quiet in {year}. This project depends on it and has not asked questions.
-{years} years without a word from {name}. It is still listed as family.
-{name} was last updated in {year}, {years} years ago. The project still talks about it in the present tense.
-The last anyone heard from {name} was {year}. Its room has been kept exactly as it was.
-{name} has been silent for {years} years. Either it is finished or it is gone, and nobody wants to ask.
-{year}: the last time {name} changed. The project has aged {years} years since. {name} has not.
+# A line starting with [N+] is for a package unchanged for N years or more, and replaces the
+# unmarked lines once a package gets there.
+{name} has not been seen on set since {year}. Its chair still has its name on it.
+{name} last changed in {year}, {years} years ago. The show keeps it in the opening credits, just in case.
+Nobody has heard from {name} since {year}. Its storyline is officially on hold.
+{years} years since {name} last changed. The writers call it a slow-burn arc.
+The last new scene with {name} was shot in {year}. Everything since has been reruns.
+{name} went quiet in {year}. The show still depends on it, and nobody wants to be the one to call its agent.
+[8+] {name} has not changed since {year}. That is {years} years, long enough for a show to be cancelled, rebooted and cancelled again.
+[8+] {name} last changed in {year}. The show has run {years} seasons since, and {name} was in all of them with the same lines.
+[8+] {years} years ago, in {year}, {name} filmed its last scene. It now appears in "previously on" segments, and in production.
