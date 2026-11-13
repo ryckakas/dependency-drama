@@ -3,11 +3,18 @@
 //! Readers fill it in; detectors and lines only ever see this. Anything that needs a manager's own
 //! rules (where a peer is looked up, how a range is matched) is answered by the reader.
 
+use std::collections::BTreeMap;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Project {
     pub(crate) name: String,
     pub(crate) packages: Vec<Package>,
+    pub(crate) members: Members,
 }
+
+/// For each workspace member, by its folder (`.` for the root), the version each of its direct
+/// dependencies resolved to. A project without workspaces has only `.`.
+pub(crate) type Members = BTreeMap<String, BTreeMap<String, String>>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[expect(

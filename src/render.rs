@@ -20,6 +20,9 @@ pub(crate) fn terminal(episode: &Episode) -> String {
     for scene in tonight {
         push_line(&mut text, "  ", &scene.text);
     }
+    if let Some(line) = episode.untold_line() {
+        push_line(&mut text, "  ", &line);
+    }
     text
 }
 
@@ -40,14 +43,25 @@ pub(crate) fn markdown(episode: &Episode) -> String {
         episode.project.replace('`', "")
     );
     let (previously, tonight) = acts(episode);
+    // On a pull request, an unchanged "Previously on" would repeat word for word in every comment.
+    let folded = episode.rerun && !tonight.is_empty();
+    if folded {
+        text.push_str("<details><summary>The same as before this change</summary>\n\n");
+    }
     for scene in previously {
         push_line(&mut text, "- ", &escape(&scene.text));
+    }
+    if folded {
+        text.push_str("\n</details>\n");
     }
     if !tonight.is_empty() {
         text.push_str("\n**Tonight…**\n\n");
     }
     for scene in tonight {
         push_line(&mut text, "- ", &escape(&scene.text));
+    }
+    if let Some(line) = episode.untold_line() {
+        push_line(&mut text, "- ", &escape(&line));
     }
     text.push_str("\n<sub>Every line is a true fact from the lockfile, narrated by ");
     text.push_str("[dependency-drama](");
@@ -64,6 +78,10 @@ struct Document<'episode> {
     schema: u32,
     project: &'episode str,
     scenes: Vec<SceneDocument<'episode>>,
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    untold: &'episode [Plot],
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    rerun: bool,
 }
 
 #[derive(Serialize)]
@@ -86,6 +104,8 @@ pub(crate) fn json(episode: &Episode) -> String {
         schema: SCHEMA,
         project: &episode.project,
         scenes: episode.scenes.iter().map(scene_document).collect(),
+        untold: &episode.untold,
+        rerun: episode.rerun,
     };
     let mut text = serde_json::to_string_pretty(&document).unwrap_or_default();
     text.push('\n');
@@ -134,6 +154,8 @@ mod tests {
         Episode {
             project: "shop-web".to_owned(),
             scenes: scenes.iter().map(|text| scene(text, None)).collect(),
+            untold: Vec::new(),
+            rerun: false,
         }
     }
 
@@ -159,6 +181,8 @@ mod tests {
         let episode = Episode {
             project: "shop-web".to_owned(),
             scenes: vec![scene("widget wanted react ^18_x.", Some(feud))],
+            untold: Vec::new(),
+            rerun: false,
         };
 
         assert_eq!(
@@ -192,6 +216,8 @@ mod tests {
         let episode = Episode {
             project: "shop-web".to_owned(),
             scenes: vec![scene("webpack is behind.", Some(capsule))],
+            untold: Vec::new(),
+            rerun: false,
         };
 
         let scenes = parsed(&episode)["scenes"].clone();
@@ -247,7 +273,63 @@ mod tests {
                 scene("Dinner was tense.", None),
                 scene("A stranger arrives: left-pad 1.3.0.", Some(arrival)),
             ],
+            untold: Vec::new(),
+            rerun: false,
         }
+    }
+
+    #[test]
+    fn markdown_folds_a_previously_on_that_the_change_left_as_it_was() {
+        let rerun = Episode {
+            rerun: true,
+            ..with_an_arrival()
+        };
+
+        let text = markdown(&rerun);
+
+        assert!(
+            text.contains("…\n\n<details><summary>The same as before this change</summary>\n\n- Dinner was tense.\n\n</details>\n\n**Tonight…**\n\n- A stranger arrives"),
+            "{text}"
+        );
+        assert_eq!(parsed(&rerun)["rerun"], true);
+        assert_eq!(parsed(&with_an_arrival()).get("rerun"), None);
+    }
+
+    #[test]
+    fn markdown_without_tonight_never_folds() {
+        let episode = Episode {
+            rerun: true,
+            ..episode(&["Dinner was tense."])
+        };
+
+        assert!(!markdown(&episode).contains("<details>"));
+    }
+
+    fn with_an_untold_departure() -> Episode {
+        Episode {
+            untold: vec![Plot::WrittenOut {
+                name: "@types/dompurify".to_owned(),
+                version: "3.2.0".to_owned(),
+            }],
+            ..with_an_arrival()
+        }
+    }
+
+    #[test]
+    fn every_layout_names_the_changes_that_got_no_scene() {
+        let episode = with_an_untold_departure();
+
+        assert!(terminal(&episode).ends_with(
+            "  A stranger arrives: left-pad 1.3.0.\n  Also tonight: @types/dompurify 3.2.0 written out.\n"
+        ));
+        assert!(markdown(&episode).contains(
+            "- A stranger arrives: left-pad 1.3.0.\n- Also tonight: @\u{200b}types/dompurify 3.2.0 written out.\n\n<sub>"
+        ));
+        assert_eq!(
+            parsed(&episode)["untold"],
+            json!([{"kind": "written_out", "facts": {"name": "@types/dompurify", "version": "3.2.0"}}])
+        );
+        assert_eq!(parsed(&with_an_arrival()).get("untold"), None);
     }
 
     #[test]

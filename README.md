@@ -10,10 +10,10 @@ Deadpan jokes about your dependencies. Every line is a true fact from the lockfi
 PREVIOUSLY ON shop-web…
 
   left-pad is deprecated and still here. In 2016 it left npm for a few hours and builds around the world stopped. It knows what it is worth.
-  request retired in 2020 and is still installed. It was downloaded millions of times a week when it stopped. Old habits.
   express 4.22.3 is 1 major version behind. Version 5 was about ten years in the making, so nobody here feels rushed.
-  webpack lives at 4.47.0. 5.112.2 sends postcards. They go unopened.
-  The guest list said 9 guests. The caterer counted 461.
+  The show was pitched with 9 guests. It now employs 461 and is, technically, a small town.
+  esbuild 0.19.12 is still listed as in development. So, by extension, is everything built on it.
+  A donation link for 46 packages runs in the end credits. The end credits are always skipped. (npm fund)
 ```
 
 It is a toy. It is also, by accident, a readable summary of what is rotting in your `node_modules`.
@@ -56,7 +56,11 @@ dependency-drama --base ../before  # also tell what changed since that state
 
 The action writes the episode to the job summary of every run. On a pull request that changes
 the lockfile it also posts the episode as one comment, including what the pull request did,
-and updates that comment on later pushes.
+and updates that comment on later pushes. When the pull request leaves "Previously on" as it
+was, the comment folds that part away, so what the pull request did is what a reviewer sees.
+What the pull request did is measured the way GitHub's own diff measures it: from the tip of the
+base branch for the default checkout (GitHub's merge commit), and from the commit the pull request
+branched off when a workflow checks out the pull request's head.
 
 ```yaml
 on: pull_request
@@ -70,6 +74,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false # the action never uses git credentials
       - uses: ryckakas/dependency-drama@v0.1.0 # or pin the release's full commit SHA
 ```
 
@@ -88,8 +94,9 @@ A pull request from a fork gets a read-only token, so it gets the job summary an
 ### Monorepos
 
 npm and pnpm workspaces share one lockfile at the root, and the dependencies of every workspace
-member are read from it: one step, default `path`. Projects with their own lockfile in separate directories
-get one step each, and one comment each:
+member are read from it: one step, default `path`. Tonight compares each member with its own
+earlier state, so a major upgrade in some members says how many of those using the package moved.
+Projects with their own lockfile in separate directories get one step each, and one comment each:
 
 ```yaml
       - uses: ryckakas/dependency-drama@v0.1.0
@@ -99,6 +106,27 @@ get one step each, and one comment each:
         with:
           path: admin
 ```
+
+The action reads only a few files: the lockfile, `package.json` beside it (for the project's
+name), and the registry settings `.npmrc` and, for pnpm, `pnpm-workspace.yaml`. A large
+repository can check out just those:
+
+```yaml
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /package.json
+            /pnpm-lock.yaml
+            /pnpm-workspace.yaml
+            /.npmrc
+          sparse-checkout-cone-mode: false
+      - uses: ryckakas/dependency-drama@v0.1.0
+```
+
+For a project in a subdirectory, list its files under that directory, and keep `package.json`:
+without it, the project is named after the checkout directory, which in CI is the repository's
+name.
 
 ## What it looks for
 
@@ -115,7 +143,8 @@ get one step each, and one comment each:
 | Night visitor | Packages that run a script on install |
 
 With `--base`, pointing at the same project before a change (a directory or its lockfile),
-up to three more scenes follow under "Tonight":
+up to three more scenes follow under "Tonight", and one closing line names any change left
+without a scene:
 
 | Scene | The fact behind it |
 |---|---|
@@ -123,7 +152,11 @@ up to three more scenes follow under "Tonight":
 | Written out | A direct dependency that is no longer there |
 | Recast | A direct dependency moved up a major version |
 
-An episode has five scenes at most, not counting tonight's. The same lockfile always gives the same episode.
+An episode has five scenes at most, not counting tonight's, and every kind of fact gets one scene
+before any kind gets a second. The same lockfile always gives the same
+episode for the same project name, which is the `name` in `package.json` (npm also keeps it in
+`package-lock.json`). Only a project without one is named after its directory, and that name can
+differ between a CI checkout and a local clone.
 
 ## JSON
 
@@ -137,8 +170,8 @@ An episode has five scenes at most, not counting tonight's. The same lockfile al
     {
       "kind": "time_capsule",
       "facts": { "name": "webpack", "version": "4.47.0", "latest": "5.112.2", "majors_behind": 1 },
-      "text": "webpack is 1 major version behind. Nobody has told it about 5.112.2.",
-      "markdown": "webpack is 1 major version behind. Nobody has told it about 5.112.2."
+      "text": "webpack lives at 4.47.0. 5.112.2 sends postcards. They go unopened.",
+      "markdown": "webpack lives at 4.47.0. 5.112.2 sends postcards. They go unopened."
     }
   ]
 }
@@ -149,6 +182,10 @@ lockfile gave the writers nothing. `text` is the line as the terminal shows it; 
 same line escaped, safe to paste into a comment. The values in `facts` come straight from the
 lockfile and the registry and are **not** escaped. `schema` goes up when a field is removed or
 changes meaning; new fields and kinds may appear without it.
+
+`untold`, present only when it has entries, lists what the change did that had no room for a
+scene, each as `kind` and `facts`. The terminal and Markdown layouts name those in one closing
+line, "Also tonight: …", so no change goes unmentioned.
 
 ## npm and pnpm
 
@@ -187,6 +224,9 @@ The jokes live in plain text files under [`src/lines`](src/lines), one line per 
 
 - The joke is on the package or on the project, never on a person. Maintainers owe nobody anything.
 - Keep it deadpan and safe to paste into a work chat.
+
+Some scenes scale: a row marked `[5+]` is for facts of at least that size, so a dependency 18
+major versions behind is not told like one 1 behind.
 
 A test fails if a line uses a placeholder its scene does not provide.
 [CONTRIBUTING.md](CONTRIBUTING.md) lists the placeholders of every scene.

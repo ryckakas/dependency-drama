@@ -1,8 +1,11 @@
-You invited {guests}. {installed} showed up.
-The guest list said {guests}. The caterer counted {installed}.
-The household now numbers {installed}. The invitations went out to {guests}.
-Nobody remembers inviting more than {guests}, yet dinner is set for {installed}.
-{installed} packages are living in node_modules. The lease names {guests}.
-{guests} got an invitation. With everyone they brought along, the house now holds {installed}.
-The manifest names {guests}. The lockfile needed room for {installed}.
-This project asked for {guests} and is now responsible for {installed}.
+# A line starting with [N+] is for projects with at least N installed packages per direct
+# dependency, and replaces the unmarked lines once a project gets there.
+The cast list names {guests}. Craft services is feeding {installed}.
+Casting booked {guests}. Each came with an agent, a stylist and a stand-in, and the set now holds {installed}.
+The pilot was written for {guests}. The end credits run to {installed} names and take longer than the episode.
+The script calls for {guests}. Wardrobe has fitted {installed}, and nobody can find the call sheet.
+The producers approved {guests}. The set holds {installed}, and every one of them expects a chair with its name on it.
+On paper this is a small show with {guests}. The catering bill says {installed}.
+[50+] The show was pitched with {guests}. It now employs {installed} and is, technically, a small town.
+[50+] {guests} on the call sheet, {installed} on set. Catering has stopped counting and started a supply chain.
+[50+] The cast list names {guests}. The credits list {installed}, and the uncredited majority has formed a union.

@@ -1,9 +1,9 @@
-{name} is at version {version}. It says it will be ready for 1.0 any day now.
-{name} {version} still has not committed to a 1.0. The project built its life around it anyway.
-This project depends on {name} {version}. {name} has promised nothing.
-{name} keeps its options open at {version}. Under semver, anything may change. Anything.
-{name} has not reached 1.0 and is in no hurry. It is {version}, and it is in your lockfile.
-{name} {version} is part of the family now. It has still not said the words "one point oh".
-{name} is still at {version}. Zero is a number too, it says.
-Production runs on {name} {version}. The zero at the front is described as a formality.
-{name} {version} is technically still an experiment. So, by extension, is this project.
+{name} is at {version}, still in its pilot season. The show has been renewed on the strength of the pilot ever since.
+{name} {version} has never signed a 1.0 contract. The show was built around it anyway.
+{name} is credited at {version} as a "special appearance". It appears in every episode.
+{name} {version} is still listed as in development. So, by extension, is everything built on it.
+{name} is still at {version}. Zero is a number too, it tells the press.
+Production runs on {name} {version}. The leading zero is described as a formality.
+{name} {version} keeps its options open. Semver lets a 0.x version change anything, and the writers have read that clause twice.
+{name} {version} has the lead role and a 0.x contract. Its agent calls that flexible. The writers call it a plot device.
+Every season, {name} {version} is about to go 1.0. It makes a good cliffhanger.

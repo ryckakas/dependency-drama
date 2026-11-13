@@ -4,13 +4,14 @@
 //! those two scenes.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
 use std::path::Path;
 
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 
 use crate::lockfile::{self, ReadError};
-use crate::model::{Package, Peer, Project, Source};
+use crate::model::{Members, Package, Peer, Project, Source};
 use crate::npm;
 use crate::npmrc::Registries;
 
@@ -56,6 +57,11 @@ struct Entry {
     cpu: Option<IgnoredAny>,
 }
 
+#[derive(Deserialize)]
+struct Manifest {
+    name: Option<String>,
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 struct Snapshot {
@@ -70,16 +76,28 @@ pub(crate) fn read(file: &Path, registries: &Registries) -> Result<Project, Read
     }
     let lockfile: Lockfile = serde_saphyr::from_str(&text)
         .map_err(|error| ReadError::Malformed(file.to_path_buf(), error.to_string()))?;
-    let direct = direct(&lockfile);
+    let members = members(&lockfile);
+    let direct = direct(&members);
     let packages = lockfile
         .packages
         .iter()
         .filter_map(|(key, entry)| package(&lockfile, registries, &direct, key, entry))
         .collect();
     Ok(Project {
-        name: lockfile::directory_name(file).unwrap_or_else(|| "this project".to_owned()),
+        name: manifest_name(file)
+            .or_else(|| lockfile::directory_name(file))
+            .unwrap_or_else(|| "this project".to_owned()),
         packages,
+        members,
     })
+}
+
+/// The `name` in the `package.json` beside the lockfile, which npm copies into its own lockfile.
+/// The directory is only a fallback: a CI checkout is named after the repository, not the package.
+fn manifest_name(lockfile: &Path) -> Option<String> {
+    let text = fs::read_to_string(lockfile.with_file_name("package.json")).ok()?;
+    let manifest: Manifest = serde_json::from_str(&text).ok()?;
+    manifest.name.filter(|name| !name.trim().is_empty())
 }
 
 /// Read from the text, not the parsed document: older lockfiles write the version as a number and
@@ -90,22 +108,33 @@ fn lockfile_version(text: &str) -> &str {
         .map_or("", |version| version.trim().trim_matches(['\'', '"']))
 }
 
-/// The `name@version` keys every workspace member asks for. A link to another member is not a
-/// package.
-fn direct(lockfile: &Lockfile) -> BTreeSet<String> {
+/// A link to another member is not a package.
+fn members(lockfile: &Lockfile) -> Members {
     lockfile
         .importers
-        .values()
-        .flat_map(|importer| {
-            [
+        .iter()
+        .map(|(folder, importer)| {
+            let dependencies = [
                 &importer.dependencies,
                 &importer.dev_dependencies,
                 &importer.optional_dependencies,
             ]
+            .into_iter()
+            .flatten()
+            .filter(|(_, requested)| !requested.version.starts_with("link:"))
+            .map(|(name, requested)| (name.clone(), without_peers(&requested.version).to_owned()))
+            .collect();
+            (folder.clone(), dependencies)
         })
+        .collect()
+}
+
+/// The `name@version` keys every workspace member asks for.
+fn direct(members: &Members) -> BTreeSet<String> {
+    members
+        .values()
         .flatten()
-        .filter(|(_, requested)| !requested.version.starts_with("link:"))
-        .map(|(name, requested)| format!("{name}@{}", without_peers(&requested.version)))
+        .map(|(name, version)| format!("{name}@{version}"))
         .collect()
 }
 
@@ -235,6 +264,39 @@ mod tests {
         assert_eq!(project.packages, []);
     }
 
+    /// The project's name with this `package.json` beside the lockfile, and its directory's name.
+    fn named(manifest: Option<&str>) -> (String, String) {
+        let directory = project_with(
+            "lockfileVersion: '9.0'
+importers:
+  .: {}
+",
+        );
+        if let Some(manifest) = manifest {
+            std::fs::write(directory.path().join("package.json"), manifest)
+                .expect("write manifest");
+        }
+        let project = read(
+            &directory.path().join("pnpm-lock.yaml"),
+            &Registries::default(),
+        );
+        let directory_name = directory.path().canonicalize().expect("temp dir exists");
+        let directory_name = directory_name
+            .file_name()
+            .expect("has a name")
+            .to_string_lossy();
+        (project.expect("reads").name, directory_name.into_owned())
+    }
+
+    #[test]
+    fn the_project_is_named_by_its_package_json_and_else_by_its_directory() {
+        assert_eq!(named(Some(r#"{"name": "acme"}"#)).0, "acme");
+        for manifest in [None, Some("{}"), Some(r#"{"name": " "}"#), Some("not json")] {
+            let (name, directory_name) = named(manifest);
+            assert_eq!(name, directory_name, "{manifest:?}");
+        }
+    }
+
     #[test]
     fn one_dependency_is_one_direct_package() {
         let project = read_text(
@@ -279,6 +341,10 @@ snapshots:
                 "typescript 5.6.3 direct",
                 "widget 1.0.0 direct",
             ]
+        );
+        assert_eq!(
+            format!("{:?}", project.members),
+            r#"{".": {"typescript": "5.6.3"}, "packages/api": {"lodash": "4.17.21"}, "packages/ui": {"@scope/kit": "2.0.0", "fsevents": "2.3.3", "lodash": "3.10.1", "react": "18.3.1", "widget": "1.0.0"}}"#
         );
     }
 

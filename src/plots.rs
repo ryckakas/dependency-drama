@@ -65,6 +65,9 @@ pub(crate) enum Plot {
         name: String,
         from: String,
         to: String,
+        /// How many workspace members made the move, and how many use the package now.
+        moved_in: usize,
+        used_in: usize,
     },
 }
 
@@ -87,7 +90,8 @@ pub(crate) enum Kind {
 const ENTOURAGE_PER_DIRECT: usize = 20;
 const CLONES_OF_ANYTHING: usize = 4;
 const MISSING_AFTER_YEARS: i64 = 3;
-const MESSAGE_LENGTH: usize = 110;
+/// Short enough to quote in the middle of a line and still end on the joke.
+pub(crate) const MESSAGE_LENGTH: usize = 80;
 
 impl Plot {
     pub(crate) fn kind(&self) -> Kind {
@@ -143,6 +147,31 @@ impl Plot {
         }
     }
 
+    /// How big the fact is, for the kinds whose lines change with it: majors behind, versions
+    /// installed, years unchanged, packages per direct dependency.
+    pub(crate) fn magnitude(&self) -> Option<u64> {
+        let magnitude = match self {
+            Self::TimeCapsule { majors_behind, .. } => *majors_behind,
+            Self::Clones { versions, .. } => *versions as u64,
+            Self::MissingPerson { years, .. } => years.unsigned_abs(),
+            Self::Entourage { direct, installed } => (installed / direct.max(&1)) as u64,
+            _ => return None,
+        };
+        Some(magnitude)
+    }
+
+    /// A sentence told after the line, for a fact no line could know to mention.
+    pub(crate) fn aside(&self) -> Option<String> {
+        match self {
+            Self::Recast {
+                moved_in, used_in, ..
+            } if moved_in < used_in => Some(format!(
+                "Only {moved_in} of the {used_in} workspaces that use it made the move."
+            )),
+            _ => None,
+        }
+    }
+
     /// The values a line may quote, by placeholder name. `Kind::placeholders` lists the same names.
     pub(crate) fn values(&self) -> Vec<(&'static str, String)> {
         match self {
@@ -157,7 +186,7 @@ impl Plot {
             | Self::WrittenOut { name, version } => {
                 vec![("name", name.clone()), ("version", version.clone())]
             }
-            Self::Recast { name, from, to } => vec![
+            Self::Recast { name, from, to, .. } => vec![
                 ("name", name.clone()),
                 ("from", from.clone()),
                 ("to", to.clone()),
@@ -315,43 +344,67 @@ pub(crate) fn from_registry(
     plots
 }
 
-/// What changed among the direct dependencies between two states of one project.
+/// What changed among the direct dependencies between two states of one project. A package
+/// arrives when no workspace member had it and is written out when none has it any more; a recast
+/// is found member by member, so one member moving is not taken for the whole project.
 pub(crate) fn since(before: &Project, now: &Project) -> Vec<Plot> {
-    let before = direct_versions(before);
-    let now = direct_versions(now);
-    let arrived_or_recast = now.iter().filter_map(|(name, version)| {
-        before.get(name).map_or_else(
-            || {
-                Some(Plot::NewArrival {
-                    name: (*name).to_owned(),
-                    version: (*version).to_owned(),
-                })
-            },
-            |earlier| recast(name, earlier, version),
-        )
-    });
+    let before = by_name(before);
+    let now = by_name(now);
+    let arrived_or_recast = now
+        .iter()
+        .filter_map(|(name, members)| match before.get(name) {
+            None => Some(Plot::NewArrival {
+                name: (*name).to_owned(),
+                version: newest(members).to_owned(),
+            }),
+            Some(earlier) => recast(name, earlier, members),
+        });
     let written_out = before
         .iter()
         .filter(|(name, _)| !now.contains_key(*name))
-        .map(|(name, version)| Plot::WrittenOut {
+        .map(|(name, members)| Plot::WrittenOut {
             name: (*name).to_owned(),
-            version: (*version).to_owned(),
+            version: newest(members).to_owned(),
         });
     arrived_or_recast.chain(written_out).collect()
 }
 
-fn direct_versions(project: &Project) -> BTreeMap<&str, &str> {
-    project
-        .direct()
-        .map(|package| (package.name.as_str(), package.version.as_str()))
-        .collect()
+/// By package name, the version each workspace member that depends on it uses.
+type UsedBy<'a> = BTreeMap<&'a str, BTreeMap<&'a str, &'a str>>;
+
+fn by_name(project: &Project) -> UsedBy<'_> {
+    let mut names = UsedBy::new();
+    for (member, dependencies) in &project.members {
+        for (name, version) in dependencies {
+            names.entry(name).or_default().insert(member, version);
+        }
+    }
+    names
 }
 
-fn recast(name: &str, from: &str, to: &str) -> Option<Plot> {
-    (major(to)? > major(from)?).then(|| Plot::Recast {
+fn newest<'a>(members: &BTreeMap<&str, &'a str>) -> &'a str {
+    members
+        .values()
+        .max_by_key(|version| major(version))
+        .copied()
+        .unwrap_or_default()
+}
+
+fn recast(name: &str, before: &BTreeMap<&str, &str>, now: &BTreeMap<&str, &str>) -> Option<Plot> {
+    let moves: Vec<(&str, &str)> = now
+        .iter()
+        .filter_map(|(member, to)| {
+            let from = before.get(member)?;
+            (major(to)? > major(from)?).then_some((*from, *to))
+        })
+        .collect();
+    let (from, to) = moves.iter().max_by_key(|(_, to)| major(to))?;
+    Some(Plot::Recast {
         name: name.to_owned(),
-        from: from.to_owned(),
-        to: to.to_owned(),
+        from: (*from).to_owned(),
+        to: (*to).to_owned(),
+        moved_in: moves.len(),
+        used_in: now.len(),
     })
 }
 
@@ -405,8 +458,25 @@ fn quotable(message: &str) -> String {
     if flat.chars().count() <= MESSAGE_LENGTH {
         return flat;
     }
-    let cut: String = flat.chars().take(MESSAGE_LENGTH).collect();
-    format!("{}…", cut.trim_end())
+    // One character past the limit, so a sentence or a word that ends exactly at it still counts.
+    let window: String = flat.chars().take(MESSAGE_LENGTH + 1).collect();
+    if let Some(end) = last_sentence_end(&window) {
+        return window[..end].to_owned();
+    }
+    let cut: String = match window.rfind(' ') {
+        Some(space) => window[..space].to_owned(),
+        None => window.chars().take(MESSAGE_LENGTH).collect(),
+    };
+    format!("{cut}…")
+}
+
+/// Where the last sentence that ends inside `text`, followed by a space, stops.
+fn last_sentence_end(text: &str) -> Option<usize> {
+    [". ", "! ", "? "]
+        .iter()
+        .flat_map(|end| text.match_indices(end))
+        .map(|(at, _)| at + 1)
+        .max()
 }
 
 fn clones(project: &Project) -> Vec<Plot> {
@@ -497,15 +567,38 @@ fn missing_person(name: &str, modified: &str, today: Date) -> Option<Plot> {
 mod tests {
     use std::collections::HashMap;
 
-    use super::{Kind, Plot, from_registry, offline, since};
+    use super::{Kind, MESSAGE_LENGTH, Plot, from_registry, offline, since};
     use crate::date::date;
     use crate::model::{Package, Peer, Project, package};
     use crate::registry::RegistryFacts;
 
+    /// A project without workspaces: its direct packages are what the root asks for.
     fn project(packages: Vec<Package>) -> Project {
+        let root = packages
+            .iter()
+            .filter(|package| package.direct)
+            .map(|package| (package.name.clone(), package.version.clone()))
+            .collect();
         Project {
             name: "shop-web".to_owned(),
             packages,
+            members: [(".".to_owned(), root)].into(),
+        }
+    }
+
+    /// Two workspace members, each with at most one version of `foo`.
+    fn foo_in(a: Option<&str>, b: Option<&str>) -> Project {
+        let member = |folder: &str, version: Option<&str>| {
+            let dependencies = version
+                .map(|version| ("foo".to_owned(), version.to_owned()))
+                .into_iter()
+                .collect();
+            (folder.to_owned(), dependencies)
+        };
+        Project {
+            name: "shop-web".to_owned(),
+            packages: Vec::new(),
+            members: [member("apps/a", a), member("apps/b", b)].into(),
         }
     }
 
@@ -513,6 +606,17 @@ mod tests {
         Package {
             direct: true,
             ..package(name, version)
+        }
+    }
+
+    fn ghost_message(message: &str) -> String {
+        let package = Package {
+            deprecation: Some(message.to_owned()),
+            ..package("old", "1.0.0")
+        };
+        match offline(&project(vec![package])).remove(0) {
+            Plot::Ghost { message, .. } => message,
+            other => panic!("expected a ghost, got {other:?}"),
         }
     }
 
@@ -600,21 +704,46 @@ mod tests {
 
     #[test]
     fn a_long_or_missing_deprecation_message_stays_quotable() {
-        let ghost = |message: &str| {
-            let package = Package {
-                deprecation: Some(message.to_owned()),
-                ..package("old", "1.0.0")
-            };
-            match offline(&project(vec![package])).remove(0) {
-                Plot::Ghost { message, .. } => message,
-                other => panic!("expected a ghost, got {other:?}"),
-            }
-        };
+        let limit = MESSAGE_LENGTH;
+        assert_eq!(ghost_message(""), "no reason given");
+        assert_eq!(ghost_message(&"x".repeat(limit)).chars().count(), limit);
+        assert_eq!(
+            ghost_message(&"x".repeat(limit + 1)),
+            format!("{}…", "x".repeat(limit))
+        );
+    }
 
-        assert_eq!(ghost(""), "no reason given");
-        assert_eq!(ghost(&"x".repeat(110)).chars().count(), 110);
-        assert_eq!(ghost(&"x".repeat(111)).chars().count(), 111);
-        assert!(ghost(&"x".repeat(111)).ends_with('…'));
+    #[test]
+    fn a_long_deprecation_message_stops_at_a_sentence_that_fits() {
+        assert_eq!(
+            ghost_message(
+                "uuid@10 and below is no longer supported. For ESM codebases, update to uuid@latest. For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028)."
+            ),
+            "uuid@10 and below is no longer supported."
+        );
+        assert_eq!(
+            ghost_message(
+                "This is a stub types definition. dompurify provides its own type definitions, so you do not need this installed."
+            ),
+            "This is a stub types definition."
+        );
+    }
+
+    #[test]
+    fn a_long_message_without_a_sentence_that_fits_is_cut_between_words() {
+        assert_eq!(
+            ghost_message(&"word ".repeat(30)),
+            format!("{}…", "word ".repeat(MESSAGE_LENGTH.div_ceil(5)).trim_end())
+        );
+    }
+
+    #[test]
+    fn a_sentence_or_a_word_ending_exactly_at_the_limit_is_kept_whole() {
+        let sentence = format!("{}.", "x".repeat(MESSAGE_LENGTH - 1));
+        let word = "x".repeat(MESSAGE_LENGTH);
+
+        assert_eq!(ghost_message(&format!("{sentence} More.")), sentence);
+        assert_eq!(ghost_message(&format!("{word} more")), format!("{word}…"));
     }
 
     #[test]
@@ -871,6 +1000,8 @@ mod tests {
                 name: "express".to_owned(),
                 from: from.to_owned(),
                 to: to.to_owned(),
+                moved_in: 1,
+                used_in: 1,
             }]
         };
 
@@ -879,6 +1010,75 @@ mod tests {
         assert_eq!(changed("4.18.2", "4.99.0"), []);
         assert_eq!(changed("5.0.0", "4.18.2"), []);
         assert_eq!(changed("github:me/fork", "5.0.0"), []);
+    }
+
+    #[test]
+    fn a_major_move_in_one_workspace_member_is_a_recast_of_that_member_only() {
+        let both = |version| foo_in(Some(version), Some(version));
+        let recast = |from: &str, to: &str, moved_in| {
+            [Plot::Recast {
+                name: "foo".to_owned(),
+                from: from.to_owned(),
+                to: to.to_owned(),
+                moved_in,
+                used_in: 2,
+            }]
+        };
+
+        assert_eq!(
+            since(&both("1.0.0"), &foo_in(Some("1.0.0"), Some("2.0.0"))),
+            recast("1.0.0", "2.0.0", 1)
+        );
+        assert_eq!(
+            since(&both("9.0.0"), &foo_in(Some("9.0.0"), Some("10.0.0"))),
+            recast("9.0.0", "10.0.0", 1)
+        );
+        assert_eq!(
+            since(&both("9.0.0"), &both("10.0.0")),
+            recast("9.0.0", "10.0.0", 2)
+        );
+    }
+
+    #[test]
+    fn a_package_arrives_or_leaves_only_when_no_workspace_member_had_it_or_has_it() {
+        let one = foo_in(Some("1.0.0"), None);
+        let two = foo_in(Some("1.0.0"), Some("1.0.0"));
+        let neither = foo_in(None, None);
+
+        assert_eq!(since(&one, &two), []);
+        assert_eq!(since(&two, &one), []);
+        assert_eq!(
+            since(&neither, &two),
+            [Plot::NewArrival {
+                name: "foo".to_owned(),
+                version: "1.0.0".to_owned()
+            }]
+        );
+        assert_eq!(
+            since(&two, &neither),
+            [Plot::WrittenOut {
+                name: "foo".to_owned(),
+                version: "1.0.0".to_owned()
+            }]
+        );
+    }
+
+    #[test]
+    fn a_recast_in_some_workspace_members_says_how_many() {
+        let recast = |moved_in, used_in| Plot::Recast {
+            name: "typescript".to_owned(),
+            from: "5.9.3".to_owned(),
+            to: "6.0.3".to_owned(),
+            moved_in,
+            used_in,
+        };
+
+        assert_eq!(recast(1, 1).aside(), None);
+        assert_eq!(recast(16, 16).aside(), None);
+        assert_eq!(
+            recast(1, 16).aside().as_deref(),
+            Some("Only 1 of the 16 workspaces that use it made the move.")
+        );
     }
 
     #[test]
@@ -971,6 +1171,8 @@ mod tests {
                 name: String::new(),
                 from: String::new(),
                 to: String::new(),
+                moved_in: 1,
+                used_in: 1,
             },
         ];
 

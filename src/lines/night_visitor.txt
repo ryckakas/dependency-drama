@@ -1,8 +1,8 @@
-{name} has a key to the house: it runs a script on every install. Keys handed out so far cover {packages}.
-During every install, {name} runs a script. It has never said what it does. The total with this habit: {packages}.
-Install scripts run here on behalf of {packages}, {name} included. Nobody watches them work.
-{name} lets itself in during install and runs a script. Visitors with that habit so far: {packages}.
-{name} runs a script whenever you install. Counting it, scripts with no audience run for {packages}.
-While you wait for an install to finish, {name} is busy with a script of its own. In all, this is true of {packages}.
-{name} does something during install. It is in the script. In total, scripts run for {packages}.
-An install is never just an install: {name} runs a script, and the full list covers {packages}.
+{name} has an after-hours pass: it runs a script on every install. Passes issued on this set: {packages}.
+On every install, {name} runs a script of its own. It is not in the shooting schedule, and neither are the others: {packages} in all.
+{name} does its own stunts during install, with a script nobody reviewed. Stunt performers on this show: {packages}.
+When the cameras roll for an install, {name} runs a scene nobody wrote for it. The show counts {packages} like that.
+{name} improvises during every install, with a script of its own. Improvisers on this set: {packages}.
+Every install, {name} slips in a scene that is not in the script. Unscripted scenes so far come from {packages}.
+{name} stays behind after every install to run a script. The night crew on this set: {packages}.
+The install is a live broadcast, and {name} has its own segment: a script. Segments like that: {packages}.

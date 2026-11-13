@@ -85,6 +85,7 @@ runs:
         PROJECT: ${{ inputs.path }}
         OFFLINE: ${{ inputs.offline }}
         BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       run: |
         set -euo pipefail
         work="$RUNNER_TEMP/dependency-drama"
@@ -99,9 +100,23 @@ runs:
           arguments+=(--offline)
         fi
 
+        # The default checkout of a pull request is GitHub's merge commit, which sits on the tip of
+        # the base branch, so that tip is what the pull request changed. A checkout of the pull
+        # request's own head is compared with where it branched off instead, as GitHub's diff is:
+        # the tip may have moved on since, and the pull request would be credited with the reverse.
+        base_ref="$BASE_SHA"
+        if [ -n "$HEAD_SHA" ] && [ "$(git -C "$PROJECT" rev-parse HEAD)" = "$HEAD_SHA" ]; then
+          if merge_base="$(gh api "repos/$GITHUB_REPOSITORY/compare/$BASE_SHA...$HEAD_SHA"             --jq .merge_base_commit.sha 2> "$work/merge-base-error")" && [ -n "$merge_base" ]; then
+            base_ref="$merge_base"
+          else
+            echo "::warning::Could not find where the pull request branched off, so it is compared with the tip of the base branch: $(cat "$work/merge-base-error")"
+          fi
+        fi
+
         changed=false
         if [ -n "$BASE_SHA" ]; then
-          if gh api "repos/$GITHUB_REPOSITORY/contents/${prefix}${lockfile}?ref=$BASE_SHA" \
+          echo "Comparing ${prefix}${lockfile} with $base_ref"
+          if gh api "repos/$GITHUB_REPOSITORY/contents/${prefix}${lockfile}?ref=$base_ref" \
             -H "Accept: application/vnd.github.raw" \
             > "$work/base/$lockfile" 2> "$work/base-error"; then
             arguments+=(--base "$work/base")

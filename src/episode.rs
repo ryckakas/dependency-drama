@@ -9,11 +9,29 @@ const SCENES: usize = 5;
 const SCENES_PER_KIND: usize = 2;
 /// Scenes about the change under review come on top of the five, so they never push the rest out.
 const SCENES_TONIGHT: usize = 3;
+/// Changes named in the closing line before the rest are only counted.
+const UNTOLD_NAMED: usize = 8;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Episode {
     pub(crate) project: String,
     pub(crate) scenes: Vec<Scene>,
+    /// What the change under review did that had no room for a scene. It is still named, since a
+    /// reader takes a missing line for something that did not happen.
+    pub(crate) untold: Vec<Plot>,
+    /// "Previously on" is word for word what the project told before the change under review.
+    pub(crate) rerun: bool,
+}
+
+impl Episode {
+    pub(crate) fn untold_line(&self) -> Option<String> {
+        let mut notes: Vec<String> = self.untold.iter().take(UNTOLD_NAMED).map(note).collect();
+        let more = self.untold.len().saturating_sub(UNTOLD_NAMED);
+        if more > 0 {
+            notes.push(format!("and {more} more"));
+        }
+        (!notes.is_empty()).then(|| format!("Also tonight: {}.", notes.join(", ")))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,12 +52,19 @@ impl Scene {
 pub(crate) fn write(project: &str, mut plots: Vec<Plot>) -> Episode {
     let project = &tidy(project);
     plots.sort_by_cached_key(|plot| (Reverse(plot.juiciness()), seed(project, plot)));
+    // One scene per kind before any kind gets a second, so a large project, which has some of
+    // every fact, is not told the same few kinds every time.
     let mut cast: Vec<&Plot> = Vec::new();
-    for plot in &plots {
-        if has_room(&cast, plot.kind()) {
-            cast.push(plot);
-        }
+    for per_kind in [1, SCENES_PER_KIND] {
+        cast_more(&plots, &mut cast, per_kind);
     }
+    let mut cast: Vec<&Plot> = plots.iter().filter(|plot| cast.contains(plot)).collect();
+    let mut untold: Vec<Plot> = plots
+        .iter()
+        .filter(|plot| plot.kind().is_tonight() && !cast.contains(plot))
+        .cloned()
+        .collect();
+    untold.sort_by(|a, b| (a.kind(), a.name()).cmp(&(b.kind(), b.name())));
     cast.sort_by_key(|plot| plot.kind().is_tonight());
     let mut scenes: Vec<Scene> = Vec::new();
     for plot in cast {
@@ -63,10 +88,33 @@ pub(crate) fn write(project: &str, mut plots: Vec<Plot>) -> Episode {
     Episode {
         project: project.to_owned(),
         scenes,
+        untold,
+        rerun: false,
     }
 }
 
-fn has_room(cast: &[&Plot], kind: Kind) -> bool {
+fn note(plot: &Plot) -> String {
+    let note = match plot {
+        Plot::NewArrival { name, version } => format!("{name} {version} arrived"),
+        Plot::WrittenOut { name, version } => format!("{name} {version} written out"),
+        Plot::Recast { name, from, to, .. } => format!("{name} {from} recast as {to}"),
+        other => other
+            .name()
+            .unwrap_or_else(|| other.kind().slug())
+            .to_owned(),
+    };
+    tidy(&note)
+}
+
+fn cast_more<'a>(plots: &'a [Plot], cast: &mut Vec<&'a Plot>, per_kind: usize) {
+    for plot in plots {
+        if !cast.contains(&plot) && has_room(cast, plot.kind(), per_kind) {
+            cast.push(plot);
+        }
+    }
+}
+
+fn has_room(cast: &[&Plot], kind: Kind, per_kind: usize) -> bool {
     let same_kind = cast.iter().filter(|plot| plot.kind() == kind).count();
     let same_act = cast
         .iter()
@@ -78,7 +126,7 @@ fn has_room(cast: &[&Plot], kind: Kind) -> bool {
         SCENES
     };
     let ambient = cast.iter().any(|plot| plot.kind().is_ambient());
-    same_act < act && same_kind < SCENES_PER_KIND && !(kind.is_ambient() && ambient)
+    same_act < act && same_kind < per_kind && !(kind.is_ambient() && ambient)
 }
 
 /// The seeded choice, moved along to the next line the episode has not used yet.
@@ -92,11 +140,16 @@ fn pick(lines: &[&'static str], seed: u64, fresh: impl Fn(&str) -> bool) -> &'st
 }
 
 fn fill(line: &str, plot: &Plot) -> String {
-    plot.values()
+    let text = plot
+        .values()
         .into_iter()
         .fold(line.to_owned(), |text, (name, value)| {
             text.replace(&format!("{{{name}}}"), &tidy(&value))
-        })
+        });
+    match plot.aside() {
+        Some(aside) => format!("{text} {aside}"),
+        None => text,
+    }
 }
 
 /// Names and messages are written by strangers: no line break or terminal escape code in one may
@@ -116,10 +169,33 @@ fn lines_for(plot: &Plot) -> Vec<&'static str> {
         .map(|(_, _, line)| line)
         .collect();
     if own.is_empty() {
-        lines(plot.kind())
+        scaled(&lines(plot.kind()), plot.magnitude())
     } else {
         own
     }
+}
+
+/// The lines of the highest `[N+]` tier the fact reaches, or the unmarked lines below every tier.
+fn scaled(lines: &[&'static str], magnitude: Option<u64>) -> Vec<&'static str> {
+    let reached = lines
+        .iter()
+        .filter_map(|line| tier(line))
+        .map(|(at_least, _)| at_least)
+        .filter(|at_least| magnitude.is_some_and(|magnitude| magnitude >= *at_least))
+        .max();
+    lines
+        .iter()
+        .filter_map(|line| match tier(line) {
+            Some((at_least, text)) => (Some(at_least) == reached).then_some(text),
+            None => reached.is_none().then_some(*line),
+        })
+        .collect()
+}
+
+/// `[5+] text` is a line for facts of size 5 or more.
+fn tier(line: &'static str) -> Option<(u64, &'static str)> {
+    let (at_least, text) = line.strip_prefix('[')?.split_once("+] ")?;
+    Some((at_least.parse().ok()?, text))
 }
 
 /// Rows of `package | scene | line`.
@@ -169,7 +245,10 @@ fn fnv1a(text: &str) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{Episode, SCENES, SCENES_TONIGHT, celebrity_lines, fnv1a, lines, lines_in, write};
+    use super::{
+        Episode, SCENES, SCENES_TONIGHT, celebrity_lines, fnv1a, lines, lines_for, lines_in,
+        scaled, tier, write,
+    };
     use crate::plots::{Kind, Plot};
 
     fn ghost(name: &str, direct: bool) -> Plot {
@@ -360,12 +439,110 @@ mod tests {
     }
 
     #[test]
+    fn changes_without_a_scene_are_still_named_in_one_line() {
+        let plots: Vec<_> = ["a", "b", "c"].map(arrival).to_vec();
+
+        let episode = write("shop-web", plots);
+
+        assert_eq!(episode.untold.len(), 1);
+        let line = episode.untold_line().expect("a line");
+        assert!(
+            line.starts_with("Also tonight: ") && line.ends_with(" 1.0.0 arrived."),
+            "{line}"
+        );
+        assert_eq!(write("shop-web", vec![arrival("a")]).untold_line(), None);
+    }
+
+    #[test]
+    fn every_kind_of_change_gets_a_scene_before_a_kind_gets_a_second() {
+        let mut plots: Vec<_> = ["dayjs", "ms"].map(arrival).to_vec();
+        plots.push(Plot::Recast {
+            name: "eslint-plugin-unicorn".to_owned(),
+            from: "61.0.2".to_owned(),
+            to: "62.0.0".to_owned(),
+            moved_in: 1,
+            used_in: 1,
+        });
+        plots.push(Plot::WrittenOut {
+            name: "@types/dompurify".to_owned(),
+            version: "3.2.0".to_owned(),
+        });
+
+        let episode = write("shop-web", plots);
+
+        let kinds: Vec<_> = episode
+            .scenes
+            .iter()
+            .filter_map(|scene| scene.plot.as_ref().map(Plot::kind))
+            .collect();
+        assert_eq!(kinds, [Kind::NewArrival, Kind::Recast, Kind::WrittenOut]);
+        assert_eq!(episode.untold.len(), 1);
+    }
+
+    #[test]
+    fn a_long_list_of_changes_without_a_scene_names_eight_and_counts_the_rest() {
+        let names: Vec<String> = (0..20).map(|index| format!("p{index:02}")).collect();
+        let plots: Vec<_> = names.iter().map(|name| arrival(name)).collect();
+
+        let episode = write("shop-web", plots);
+
+        assert_eq!(episode.untold.len(), 18);
+        let line = episode.untold_line().expect("a line");
+        assert_eq!(line.matches(" arrived").count(), 8, "{line}");
+        assert!(line.ends_with(", and 10 more."), "{line}");
+    }
+
+    #[test]
     fn a_change_to_an_otherwise_quiet_project_still_opens_with_the_quiet_line() {
         let episode = write("calm", vec![arrival("left-pad")]);
 
         assert_eq!(episode.scenes.len(), 2);
         assert_eq!(episode.scenes[0].plot, None);
         assert!(episode.scenes[1].is_tonight());
+    }
+
+    #[test]
+    fn a_project_with_every_kind_of_fact_gets_five_different_kinds() {
+        let feud = |name: &str| Plot::Feud {
+            name: name.to_owned(),
+            peer: "react".to_owned(),
+            range: "^17".to_owned(),
+            installed: "18.3.1".to_owned(),
+        };
+        let mut plots = vec![feud("a"), feud("b"), ghost("c", true), ghost("d", true)];
+        plots.push(Plot::TimeCapsule {
+            name: "e".to_owned(),
+            version: "1.0.0".to_owned(),
+            latest: "2.0.0".to_owned(),
+            majors_behind: 1,
+        });
+        plots.push(Plot::Entourage {
+            direct: 33,
+            installed: 3000,
+        });
+        plots.push(almost_ready("f"));
+        plots.push(Plot::Clones {
+            name: "g".to_owned(),
+            versions: 5,
+        });
+
+        let episode = write("monorepo", plots);
+
+        let kinds: Vec<_> = episode
+            .scenes
+            .iter()
+            .filter_map(|scene| scene.plot.as_ref().map(Plot::kind))
+            .collect();
+        assert_eq!(
+            kinds,
+            [
+                Kind::Feud,
+                Kind::Ghost,
+                Kind::TimeCapsule,
+                Kind::Entourage,
+                Kind::AlmostReady
+            ]
+        );
     }
 
     #[test]
@@ -415,10 +592,51 @@ mod tests {
     }
 
     #[test]
+    fn every_tier_of_every_kind_has_lines_to_choose_from() {
+        let tiers = Kind::ALL.into_iter().flat_map(|kind| {
+            let marked = lines(kind).into_iter().filter_map(tier);
+            std::iter::once((kind, None)).chain(marked.map(move |(at, _)| (kind, Some(at))))
+        });
+        for (kind, magnitude) in tiers {
+            let chosen = scaled(&lines(kind), magnitude);
+            assert!(chosen.len() >= 3, "{kind:?} at {magnitude:?}: {chosen:?}");
+            assert!(chosen.iter().all(|line| !line.starts_with('[')), "{kind:?}");
+        }
+        for kind in Kind::ALL {
+            let unmarked = scaled(&lines(kind), None).len();
+            assert!(unmarked >= 6, "{kind:?} has only {unmarked} unmarked lines");
+        }
+    }
+
+    #[test]
+    fn a_bigger_fact_gets_the_lines_written_for_its_size() {
+        let lines = ["small", "[3+] middle", "[10+] large", "[10+] huge"];
+
+        assert_eq!(scaled(&lines, None), ["small"]);
+        assert_eq!(scaled(&lines, Some(2)), ["small"]);
+        assert_eq!(scaled(&lines, Some(3)), ["middle"]);
+        assert_eq!(scaled(&lines, Some(9)), ["middle"]);
+        assert_eq!(scaled(&lines, Some(18)), ["large", "huge"]);
+    }
+
+    #[test]
+    fn an_eighteen_majors_gap_is_not_told_like_a_one_major_gap() {
+        let capsule = |majors_behind| Plot::TimeCapsule {
+            name: "eslint-plugin-unicorn".to_owned(),
+            version: "43.0.0".to_owned(),
+            latest: "61.0.2".to_owned(),
+            majors_behind,
+        };
+        let one = lines_for(&capsule(1));
+        let eighteen = lines_for(&capsule(18));
+
+        assert!(one.iter().all(|line| !eighteen.contains(line)));
+    }
+
+    #[test]
     fn every_kind_has_lines_and_every_line_uses_only_what_its_kind_provides() {
         for kind in Kind::ALL {
             let lines = lines(kind);
-            assert!(lines.len() >= 8, "{kind:?} has only {} lines", lines.len());
             let provided = kind.placeholders();
             let unknown: Vec<_> = lines
                 .iter()

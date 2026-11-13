@@ -1,8 +1,8 @@
-{name} wants {peer} {range}. {peer} showed up as {installed}. They are not speaking.
-{name} asked for {peer} {range} and got {installed}. Dinner was tense.
-{peer} {installed} is not who {name} asked for. {name} was clear: {range}.
-{name} and {peer} cannot be in the same room: one demands {range}, the other is {installed}.
-{name} was promised {peer} {range}. What arrived was {installed}. Lawyers have been mentioned.
-{name} needs {peer} {range}. {peer} is {installed} and sees no problem. That is the problem.
-{name} wrote {range} on the invitation. {peer} came as {installed} anyway.
-The peer requirement was {peer} {range}. The installed reality is {installed}. {name} has gone very quiet.
+{name} wrote {peer} {range} into its contract. The studio sent {installed}. They now film their scenes on different days.
+{name} will only work with {peer} {range}. {installed} is on set anyway, and the two speak through their agents.
+{name} asked for {peer} {range} and got {installed}. The scene was shot with a body double.
+{peer} {installed} is not who {name} auditioned for, which was {range}. The table read was tense.
+The script says {name} plays opposite {peer} {range}. Opposite it stands {installed}. The chemistry reads are not going well.
+{name} expected {peer} {range}. {installed} showed up, said it was basically the same, and that is now the official position.
+{name} has asked the producers, again, for {peer} {range}. The producers have sent {installed}, again.
+{name} and {peer} {installed} share every scene and no eye contact. Its contract said {range}.

@@ -1,8 +1,10 @@
-{name} was declared deprecated. It is still here. Its last words: "{message}"
-{name} {version} has been deprecated, and nobody has asked it to leave. The note on its door: "{message}"
-{name} was written out of the show. It keeps turning up on set. Official statement: "{message}"
-{name} is deprecated and still installed. It left a note: "{message}"
-Everyone can still see {name} {version}, though it was deprecated. A message came through: "{message}"
-{name} {version} was deprecated and never moved out. On the fridge: "{message}"
-The credits list {name} as departed. It appears in this episode regardless. Its statement: "{message}"
-{name} is deprecated. It is also installed. Both things are true, and one of them says: "{message}"
+# {message} is the start of the deprecation notice, cut to whole sentences or words. Lines put it
+# before the joke, so the scene ends on the joke and not on someone else's text.
+{name} was written out of the show ("{message}") and still turns up on set every morning. Security knows it by name.
+{name} {version} left a note on the set, "{message}", and then stayed for the whole season.
+The writers killed off {name} with the words "{message}". It appears in this episode regardless, and nobody has the heart to say anything.
+{name} {version} is deprecated. Its farewell speech, "{message}", was moving. It has given it every episode since.
+"{message}", said {name} {version}, and did not leave. The scene was reshot around it.
+{name} is officially a ghost ("{message}"). It still gets a dressing room, which ghosts usually do not.
+{name} {version} announced its exit: "{message}". The credits still list it, because it is still here.
+Every episode now opens with the notice for {name}, "{message}", and then with {name}, in its usual spot.

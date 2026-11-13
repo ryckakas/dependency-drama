@@ -1,9 +1,11 @@
-There are {versions} different versions of {name} in this house. None of them acknowledges the others.
-{name} has been cast {versions} times, in {versions} versions. The audience is expected not to notice.
-{versions} versions of {name} sit at the same table. Each believes it is the original.
-Somewhere in node_modules, {versions} versions of {name} are slowly discovering each other.
-{name} appears at {versions} different versions in the lockfile. Continuity has stopped taking notes.
-{versions} versions of {name} are installed. The disk was never asked how it feels.
-{name} is here in {versions} versions. They share a name and nothing else.
-The family tree shows {name} at {versions} versions. Holidays are complicated.
+# A line starting with [N+] is for a package installed at N versions or more, and replaces the
+# unmarked lines once a package gets there.
+{name} has been cast {versions} times, in {versions} versions. Continuity has stopped taking notes.
+{versions} versions of {name} are on set, all in the same costume. Each believes it is the original.
+{name} is playing {versions} roles this season, every one of them {name}. The critics call it range.
 Casting sent {versions} versions of {name}. All of them got the part.
+{versions} versions of {name} share one dressing room. They have agreed never to appear in the same shot, and they all do.
+The plot twist this season: {name}, in {versions} versions. The audience saw it coming from the lockfile.
+[5+] {versions} versions of {name} are on the payroll. At this point it is not a role, it is a franchise.
+[5+] {name} now appears in {versions} versions. The writers have stopped calling it a twist and started calling it a multiverse.
+[5+] There are {versions} versions of {name} in this episode. Even the stand-ins have stand-ins.
