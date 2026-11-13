@@ -109,7 +109,7 @@ pub(crate) fn read(path: &Path) -> Result<Project, ReadError> {
         .or(lockfile.name)
         .or_else(|| directory_name(&file))
         .unwrap_or_else(|| "this project".to_owned());
-    let direct = root.map_or_default(direct_names);
+    let direct = direct_paths(&entries);
     let packages = entries
         .iter()
         .filter_map(|(path, entry)| package(&entries, &direct, path, entry))
@@ -128,20 +128,42 @@ fn directory_name(lockfile: &Path) -> Option<String> {
     Some(directory)
 }
 
-fn direct_names(root: &Entry) -> BTreeSet<&str> {
+/// Where the dependencies declared by the root and by every workspace member are installed. In a
+/// monorepo the root often declares nothing, and the members ask for everything.
+fn direct_paths(entries: &BTreeMap<String, Entry>) -> BTreeSet<String> {
+    entries
+        .iter()
+        .filter(|(folder, _)| !folder.contains(NODE_MODULES))
+        .flat_map(|(folder, manifest)| {
+            declared(manifest).map(move |name| installed_path(entries, folder, name))
+        })
+        .collect()
+}
+
+fn declared(manifest: &Entry) -> impl Iterator<Item = &str> {
     [
-        &root.dependencies,
-        &root.dev_dependencies,
-        &root.optional_dependencies,
+        &manifest.dependencies,
+        &manifest.dev_dependencies,
+        &manifest.optional_dependencies,
     ]
     .into_iter()
     .flat_map(|names| names.keys().map(String::as_str))
-    .collect()
+}
+
+/// A member's own copy when it has one, the shared copy at the root otherwise.
+fn installed_path(entries: &BTreeMap<String, Entry>, folder: &str, name: &str) -> String {
+    let shared = format!("{NODE_MODULES}{name}");
+    let own = format!("{folder}/{shared}");
+    if !folder.is_empty() && entries.contains_key(&own) {
+        own
+    } else {
+        shared
+    }
 }
 
 fn package(
     entries: &BTreeMap<String, Entry>,
-    direct: &BTreeSet<&str>,
+    direct: &BTreeSet<String>,
     path: &str,
     entry: &Entry,
 ) -> Option<Package> {
@@ -154,12 +176,11 @@ fn package(
         .name
         .clone()
         .unwrap_or_else(|| installed_as.to_owned());
-    let top_level = path.len() == NODE_MODULES.len() + installed_as.len();
     Some(Package {
         household_name: HOUSEHOLD_NAMES.contains(&name.as_str()),
         name,
         version,
-        direct: top_level && direct.contains(installed_as),
+        direct: direct.contains(path),
         deprecation: deprecation(entry),
         asks_for_funding: entry.funding.is_some(),
         runs_install_script: entry.has_install_script,
@@ -370,6 +391,40 @@ mod tests {
         .expect("reads");
 
         assert_eq!(project.packages, []);
+    }
+
+    #[test]
+    fn what_a_workspace_member_asks_for_is_direct_too() {
+        let project = read_text(
+            r#"{"lockfileVersion":3,"packages":{
+                "":{"workspaces":["packages/*"],"devDependencies":{"typescript":"^5"}},
+                "node_modules/typescript":{"version":"5.6.3"},
+                "node_modules/ui":{"resolved":"packages/ui","link":true},
+                "node_modules/api":{"resolved":"packages/api","link":true},
+                "node_modules/react":{"version":"18.3.1"},
+                "node_modules/loose-envify":{"version":"1.4.0"},
+                "node_modules/lodash":{"version":"4.17.21"},
+                "packages/ui":{"version":"1.0.0","dependencies":{"react":"^18","lodash":"^3","api":"*"}},
+                "packages/ui/node_modules/lodash":{"version":"3.10.1"},
+                "packages/api":{"version":"1.0.0","dependencies":{"lodash":"^4"}}
+            }}"#,
+        )
+        .expect("reads");
+        let direct: Vec<_> = project
+            .direct()
+            .map(|package| format!("{} {}", package.name, package.version))
+            .collect();
+
+        assert_eq!(
+            direct,
+            [
+                "lodash 4.17.21",
+                "react 18.3.1",
+                "typescript 5.6.3",
+                "lodash 3.10.1"
+            ]
+        );
+        assert_eq!(project.packages.len(), 5);
     }
 
     #[test]
