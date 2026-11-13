@@ -1,6 +1,6 @@
 # dependency-drama
 
-Your dependencies, narrated as a soap opera. Every line is a true fact from the lockfile.
+Deadpan jokes about your dependencies. Every line is a true fact from the lockfile.
 
 ```
 PREVIOUSLY ON shop-web…
@@ -31,6 +31,7 @@ dependency-drama path/to/app  # another project, or a package-lock.json
 dependency-drama --markdown   # Markdown, for a pull request comment
 dependency-drama --json       # JSON, for a tool that writes its own comment
 dependency-drama --offline    # ask the npm registry nothing
+dependency-drama --base ../before  # also tell what changed since that state
 ```
 
 ## What it looks for
@@ -47,7 +48,16 @@ dependency-drama --offline    # ask the npm registry nothing
 | Collection plate | Packages asking for funding (`npm fund`) |
 | Night visitor | Packages that run a script on install |
 
-An episode has five scenes at most. The same lockfile always gives the same episode.
+With `--base`, pointing at the same project before a change (a directory or a `package-lock.json`),
+up to three more scenes follow under "Tonight":
+
+| Scene | The fact behind it |
+|---|---|
+| New arrival | A direct dependency that was not there before |
+| Written out | A direct dependency that is no longer there |
+| Recast | A direct dependency moved up a major version |
+
+An episode has five scenes at most, not counting tonight's. The same lockfile always gives the same episode.
 
 ## JSON
 

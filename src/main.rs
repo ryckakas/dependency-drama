@@ -1,4 +1,4 @@
-//! Dependency Drama: a project's real dependency facts, narrated as a soap opera episode.
+//! Dependency Drama: a project's real dependency facts, told as deadpan jokes.
 
 mod date;
 mod episode;
@@ -18,7 +18,7 @@ use crate::date::Date;
 use crate::npm::ReadError;
 use crate::registry::{HttpRegistry, Registry};
 
-/// Your dependencies, narrated as a soap opera. Every line is a true fact from the lockfile.
+/// Deadpan jokes about your dependencies. Every line is a true fact from the lockfile.
 #[derive(Debug, Parser)]
 #[command(version, about)]
 struct Arguments {
@@ -33,6 +33,13 @@ struct Arguments {
     /// Write JSON: each scene with its kind, the facts behind it, and its line.
     #[arg(long, conflicts_with = "markdown")]
     json: bool,
+
+    /// The same project before a change: a directory, or a package-lock.json.
+    ///
+    /// Direct dependencies that were added, removed or moved up a major version since then are
+    /// told as tonight's scenes.
+    #[arg(long, value_name = "PATH")]
+    base: Option<PathBuf>,
 
     /// Ask the npm registry nothing.
     ///
@@ -70,6 +77,9 @@ fn run(
     if let Some(registry) = registry {
         let facts = registry::lookup_direct(&project, registry);
         plots.extend(plots::from_registry(&project, &facts, today));
+    }
+    if let Some(base) = &arguments.base {
+        plots.extend(plots::since(&npm::read(base)?, &project));
     }
     let episode = episode::write(&project.name, plots);
     Ok(if arguments.json {
@@ -121,6 +131,7 @@ mod tests {
             path: PathBuf::from("tests/fixtures/shop-web"),
             markdown,
             json: false,
+            base: None,
             offline: false,
         }
     }
@@ -180,6 +191,74 @@ mod tests {
         let parsed = Arguments::try_parse_from(["dependency-drama", "--json", "--markdown"]);
 
         assert!(parsed.is_err());
+    }
+
+    fn lockfile(directory: &std::path::Path, packages: &str) -> PathBuf {
+        std::fs::create_dir_all(directory).expect("directory");
+        let text = format!(r#"{{"name":"shop","lockfileVersion":3,"packages":{{{packages}}}}}"#);
+        std::fs::write(directory.join("package-lock.json"), text).expect("lockfile");
+        directory.to_path_buf()
+    }
+
+    #[test]
+    fn a_base_lockfile_adds_what_changed_since_as_tonights_scenes() {
+        let scratch = tempfile::tempdir().expect("scratch directory");
+        let base = lockfile(
+            &scratch.path().join("base"),
+            r#""":{"dependencies":{"express":"^4","request":"^2"}},
+               "node_modules/express":{"version":"4.18.2"},
+               "node_modules/request":{"version":"2.88.2"}"#,
+        );
+        let head = lockfile(
+            &scratch.path().join("head"),
+            r#""":{"dependencies":{"express":"^5","axios":"^1"}},
+               "node_modules/express":{"version":"5.1.0"},
+               "node_modules/axios":{"version":"1.7.0"}"#,
+        );
+        let arguments = Arguments {
+            path: head,
+            base: Some(base),
+            ..arguments(false)
+        };
+
+        let output = run(&arguments, None, date(2026, 11, 13)).expect("episode");
+
+        let (_, tonight) = output.split_once("\nTONIGHT…\n\n").expect("a second act");
+        assert_eq!(tonight.lines().count(), 3, "{output}");
+        assert!(
+            tonight.contains("axios") && tonight.contains("1.7.0"),
+            "{output}"
+        );
+        assert!(
+            tonight.contains("express") && tonight.contains("5.1.0"),
+            "{output}"
+        );
+        assert!(tonight.contains("request"), "{output}");
+    }
+
+    #[test]
+    fn a_base_identical_to_the_project_changes_nothing() {
+        let today = date(2026, 11, 13);
+        let compared = Arguments {
+            base: Some(PathBuf::from("tests/fixtures/shop-web")),
+            ..arguments(false)
+        };
+
+        assert_eq!(
+            run(&compared, None, today).expect("episode"),
+            run(&arguments(false), None, today).expect("episode")
+        );
+    }
+
+    #[test]
+    fn a_base_without_a_lockfile_is_an_error_not_an_episode() {
+        let scratch = tempfile::tempdir().expect("scratch directory");
+        let compared = Arguments {
+            base: Some(scratch.path().to_path_buf()),
+            ..arguments(false)
+        };
+
+        assert!(run(&compared, None, date(2026, 11, 13)).is_err());
     }
 
     #[test]

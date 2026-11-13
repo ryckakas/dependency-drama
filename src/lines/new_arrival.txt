@@ -1,0 +1,5 @@
+A stranger arrives: {name} {version}. Nobody has asked where it came from.
+{name} joins the cast at {version}. The others have been told to be nice.
+{name} {version} walks into the manifest as if it had always been there.
+New in town: {name} {version}. It says it is only here for one feature.
+{name} {version} has moved in. It has not said how long it plans to stay.

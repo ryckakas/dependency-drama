@@ -1,6 +1,6 @@
 [package]
 name = "dependency-drama"
-description = "Your dependencies, narrated as a soap opera"
+description = "Deadpan jokes about your dependencies, each one a true fact from the lockfile"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.100"

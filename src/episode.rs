@@ -7,6 +7,8 @@ use crate::plots::{Kind, Plot};
 const SCENES: usize = 5;
 /// Without this, a project with ten deprecated packages gets an episode about nothing else.
 const SCENES_PER_KIND: usize = 2;
+/// Scenes about the change under review come on top of the five, so they never push the rest out.
+const SCENES_TONIGHT: usize = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Episode {
@@ -21,15 +23,24 @@ pub(crate) struct Scene {
     pub(crate) plot: Option<Plot>,
 }
 
+impl Scene {
+    pub(crate) fn is_tonight(&self) -> bool {
+        self.plot
+            .as_ref()
+            .is_some_and(|plot| plot.kind().is_tonight())
+    }
+}
+
 pub(crate) fn write(project: &str, mut plots: Vec<Plot>) -> Episode {
     let project = &tidy(project);
     plots.sort_by_cached_key(|plot| (Reverse(plot.juiciness()), seed(project, plot)));
     let mut cast: Vec<&Plot> = Vec::new();
     for plot in &plots {
-        if cast.len() < SCENES && has_room(&cast, plot.kind()) {
+        if has_room(&cast, plot.kind()) {
             cast.push(plot);
         }
     }
+    cast.sort_by_key(|plot| plot.kind().is_tonight());
     let mut scenes: Vec<Scene> = Vec::new();
     for plot in cast {
         let line = pick(&lines(plot.kind()), seed(project, plot), |line| {
@@ -41,12 +52,13 @@ pub(crate) fn write(project: &str, mut plots: Vec<Plot>) -> Episode {
             plot: Some(plot.clone()),
         });
     }
-    if scenes.is_empty() {
+    if scenes.iter().all(Scene::is_tonight) {
         let quiet = lines_in(include_str!("lines/quiet.txt"));
-        scenes.push(Scene {
+        let scene = Scene {
             text: pick(&quiet, fnv1a(project), |_| true).to_owned(),
             plot: None,
-        });
+        };
+        scenes.insert(0, scene);
     }
     Episode {
         project: project.to_owned(),
@@ -56,8 +68,17 @@ pub(crate) fn write(project: &str, mut plots: Vec<Plot>) -> Episode {
 
 fn has_room(cast: &[&Plot], kind: Kind) -> bool {
     let same_kind = cast.iter().filter(|plot| plot.kind() == kind).count();
+    let same_act = cast
+        .iter()
+        .filter(|plot| plot.kind().is_tonight() == kind.is_tonight())
+        .count();
+    let act = if kind.is_tonight() {
+        SCENES_TONIGHT
+    } else {
+        SCENES
+    };
     let ambient = cast.iter().any(|plot| plot.kind().is_ambient());
-    same_kind < SCENES_PER_KIND && !(kind.is_ambient() && ambient)
+    same_act < act && same_kind < SCENES_PER_KIND && !(kind.is_ambient() && ambient)
 }
 
 /// The seeded choice, moved along to the next line the episode has not used yet.
@@ -98,6 +119,9 @@ fn lines(kind: Kind) -> Vec<&'static str> {
         Kind::MissingPerson => include_str!("lines/missing_person.txt"),
         Kind::CollectionPlate => include_str!("lines/collection_plate.txt"),
         Kind::NightVisitor => include_str!("lines/night_visitor.txt"),
+        Kind::NewArrival => include_str!("lines/new_arrival.txt"),
+        Kind::WrittenOut => include_str!("lines/written_out.txt"),
+        Kind::Recast => include_str!("lines/recast.txt"),
     })
 }
 
@@ -121,7 +145,7 @@ fn fnv1a(text: &str) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{Episode, SCENES, fnv1a, lines, lines_in, write};
+    use super::{Episode, SCENES, SCENES_TONIGHT, fnv1a, lines, lines_in, write};
     use crate::plots::{Kind, Plot};
 
     fn ghost(name: &str, direct: bool) -> Plot {
@@ -266,6 +290,58 @@ mod tests {
                 .iter()
                 .any(|scene| scene.text.contains("npm fund"))
         );
+    }
+
+    fn arrival(name: &str) -> Plot {
+        Plot::NewArrival {
+            name: name.to_owned(),
+            version: "1.0.0".to_owned(),
+        }
+    }
+
+    #[test]
+    fn what_the_change_did_is_told_last_and_on_top_of_the_five() {
+        let mut plots = vec![arrival("left-pad")];
+        plots.extend(["a", "b"].map(|name| ghost(name, true)));
+        plots.extend(["c", "d"].map(almost_ready));
+        plots.push(Plot::Entourage {
+            direct: 4,
+            installed: 486,
+        });
+
+        let episode = write("shop-web", plots);
+
+        assert_eq!(episode.scenes.len(), SCENES + 1);
+        let tonight: Vec<_> = episode
+            .scenes
+            .iter()
+            .map(super::Scene::is_tonight)
+            .collect();
+        assert_eq!(tonight, [false, false, false, false, false, true]);
+        assert_eq!(episode.scenes[5].plot, Some(arrival("left-pad")));
+    }
+
+    #[test]
+    fn a_change_with_many_arrivals_gets_three_scenes_about_it_at_most() {
+        let mut plots: Vec<_> = ["a", "b", "c"].map(arrival).to_vec();
+        plots.extend(["d", "e"].map(|name| Plot::WrittenOut {
+            name: name.to_owned(),
+            version: "1.0.0".to_owned(),
+        }));
+
+        let episode = write("shop-web", plots);
+
+        let tonight = episode.scenes.iter().filter(|scene| scene.is_tonight());
+        assert_eq!(tonight.count(), SCENES_TONIGHT);
+    }
+
+    #[test]
+    fn a_change_to_an_otherwise_quiet_project_still_opens_with_the_quiet_line() {
+        let episode = write("calm", vec![arrival("left-pad")]);
+
+        assert_eq!(episode.scenes.len(), 2);
+        assert_eq!(episode.scenes[0].plot, None);
+        assert!(episode.scenes[1].is_tonight());
     }
 
     #[test]

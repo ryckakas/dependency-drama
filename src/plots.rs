@@ -53,6 +53,19 @@ pub(crate) enum Plot {
         packages: usize,
         example: String,
     },
+    NewArrival {
+        name: String,
+        version: String,
+    },
+    WrittenOut {
+        name: String,
+        version: String,
+    },
+    Recast {
+        name: String,
+        from: String,
+        to: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -66,6 +79,9 @@ pub(crate) enum Kind {
     MissingPerson,
     CollectionPlate,
     NightVisitor,
+    NewArrival,
+    WrittenOut,
+    Recast,
 }
 
 const ENTOURAGE_PER_DIRECT: usize = 20;
@@ -85,12 +101,18 @@ impl Plot {
             Self::MissingPerson { .. } => Kind::MissingPerson,
             Self::CollectionPlate { .. } => Kind::CollectionPlate,
             Self::NightVisitor { .. } => Kind::NightVisitor,
+            Self::NewArrival { .. } => Kind::NewArrival,
+            Self::WrittenOut { .. } => Kind::WrittenOut,
+            Self::Recast { .. } => Kind::Recast,
         }
     }
 
     /// How much the scene deserves its place: the rarer and more specific the fact, the higher.
     pub(crate) fn juiciness(&self) -> u64 {
         match self {
+            Self::NewArrival { .. } => 130,
+            Self::Recast { .. } => 120,
+            Self::WrittenOut { .. } => 110,
             Self::Feud { .. } => 100,
             Self::Ghost { direct: true, .. } => 90,
             Self::TimeCapsule { majors_behind, .. } => 70 + (*majors_behind).min(15),
@@ -112,9 +134,16 @@ impl Plot {
                     ("installed", installed.to_string()),
                 ]
             }
-            Self::AlmostReady { name, version } => {
+            Self::AlmostReady { name, version }
+            | Self::NewArrival { name, version }
+            | Self::WrittenOut { name, version } => {
                 vec![("name", name.clone()), ("version", version.clone())]
             }
+            Self::Recast { name, from, to } => vec![
+                ("name", name.clone()),
+                ("from", from.clone()),
+                ("to", to.clone()),
+            ],
             Self::Ghost {
                 name,
                 version,
@@ -172,7 +201,7 @@ impl Plot {
 
 impl Kind {
     #[cfg(test)]
-    pub(crate) const ALL: [Self; 9] = [
+    pub(crate) const ALL: [Self; 12] = [
         Self::Entourage,
         Self::AlmostReady,
         Self::Ghost,
@@ -182,6 +211,9 @@ impl Kind {
         Self::MissingPerson,
         Self::CollectionPlate,
         Self::NightVisitor,
+        Self::NewArrival,
+        Self::WrittenOut,
+        Self::Recast,
     ];
 
     /// True of nearly every project, so an episode gets one such scene at most.
@@ -189,11 +221,17 @@ impl Kind {
         matches!(self, Self::CollectionPlate | Self::NightVisitor)
     }
 
+    /// What the change under review did, told after everything that was already true.
+    pub(crate) fn is_tonight(self) -> bool {
+        matches!(self, Self::NewArrival | Self::WrittenOut | Self::Recast)
+    }
+
     #[cfg(test)]
     pub(crate) fn placeholders(self) -> &'static [&'static str] {
         match self {
             Self::Entourage => &["guests", "installed"],
-            Self::AlmostReady => &["name", "version"],
+            Self::AlmostReady | Self::NewArrival | Self::WrittenOut => &["name", "version"],
+            Self::Recast => &["name", "from", "to"],
             Self::Ghost => &["name", "version", "message"],
             Self::Clones => &["name", "versions"],
             Self::Feud => &["name", "peer", "range", "installed"],
@@ -239,6 +277,46 @@ pub(crate) fn from_registry(
         plots.extend(missing_person(&package.name, &facts.modified, today));
     }
     plots
+}
+
+/// What changed among the direct dependencies between two states of one project.
+pub(crate) fn since(before: &Project, now: &Project) -> Vec<Plot> {
+    let before = direct_versions(before);
+    let now = direct_versions(now);
+    let arrived_or_recast = now.iter().filter_map(|(name, version)| {
+        before.get(name).map_or_else(
+            || {
+                Some(Plot::NewArrival {
+                    name: (*name).to_owned(),
+                    version: (*version).to_owned(),
+                })
+            },
+            |earlier| recast(name, earlier, version),
+        )
+    });
+    let written_out = before
+        .iter()
+        .filter(|(name, _)| !now.contains_key(*name))
+        .map(|(name, version)| Plot::WrittenOut {
+            name: (*name).to_owned(),
+            version: (*version).to_owned(),
+        });
+    arrived_or_recast.chain(written_out).collect()
+}
+
+fn direct_versions(project: &Project) -> BTreeMap<&str, &str> {
+    project
+        .direct()
+        .map(|package| (package.name.as_str(), package.version.as_str()))
+        .collect()
+}
+
+fn recast(name: &str, from: &str, to: &str) -> Option<Plot> {
+    (major(to)? > major(from)?).then(|| Plot::Recast {
+        name: name.to_owned(),
+        from: from.to_owned(),
+        to: to.to_owned(),
+    })
 }
 
 fn entourage(project: &Project) -> Option<Plot> {
@@ -383,7 +461,7 @@ fn missing_person(name: &str, modified: &str, today: Date) -> Option<Plot> {
 mod tests {
     use std::collections::HashMap;
 
-    use super::{Kind, Plot, from_registry, offline};
+    use super::{Kind, Plot, from_registry, offline, since};
     use crate::date::date;
     use crate::model::{Package, Peer, Project, package};
     use crate::registry::RegistryFacts;
@@ -698,6 +776,111 @@ mod tests {
     }
 
     #[test]
+    fn identical_states_have_nothing_new_to_tell() {
+        let state = || {
+            project(vec![
+                direct("express", "4.18.2"),
+                package("accepts", "1.3.8"),
+            ])
+        };
+
+        assert_eq!(since(&state(), &state()), []);
+        assert_eq!(since(&project(Vec::new()), &project(Vec::new())), []);
+    }
+
+    #[test]
+    fn a_direct_dependency_that_was_not_there_before_is_a_new_arrival() {
+        let before = project(vec![direct("express", "4.18.2")]);
+        let now = project(vec![
+            direct("express", "4.18.2"),
+            direct("left-pad", "1.3.0"),
+        ]);
+
+        assert_eq!(
+            since(&before, &now),
+            [Plot::NewArrival {
+                name: "left-pad".to_owned(),
+                version: "1.3.0".to_owned(),
+            }]
+        );
+    }
+
+    #[test]
+    fn a_direct_dependency_that_is_no_longer_there_is_written_out() {
+        let before = project(vec![
+            direct("express", "4.18.2"),
+            direct("left-pad", "1.3.0"),
+        ]);
+        let now = project(vec![direct("express", "4.18.2")]);
+
+        assert_eq!(
+            since(&before, &now),
+            [Plot::WrittenOut {
+                name: "left-pad".to_owned(),
+                version: "1.3.0".to_owned(),
+            }]
+        );
+    }
+
+    #[test]
+    fn only_an_upgrade_across_a_major_version_is_a_recast() {
+        let changed = |from: &str, to: &str| {
+            since(
+                &project(vec![direct("express", from)]),
+                &project(vec![direct("express", to)]),
+            )
+        };
+        let recast = |from: &str, to: &str| {
+            [Plot::Recast {
+                name: "express".to_owned(),
+                from: from.to_owned(),
+                to: to.to_owned(),
+            }]
+        };
+
+        assert_eq!(changed("4.18.2", "5.0.0"), recast("4.18.2", "5.0.0"));
+        assert_eq!(changed("0.9.0", "1.0.0"), recast("0.9.0", "1.0.0"));
+        assert_eq!(changed("4.18.2", "4.99.0"), []);
+        assert_eq!(changed("5.0.0", "4.18.2"), []);
+        assert_eq!(changed("github:me/fork", "5.0.0"), []);
+    }
+
+    #[test]
+    fn transitive_packages_coming_and_going_are_not_news() {
+        let before = project(vec![direct("express", "4.18.2"), package("qs", "6.11.0")]);
+        let now = project(vec![direct("express", "4.18.2"), package("ms", "2.1.3")]);
+
+        assert_eq!(since(&before, &now), []);
+    }
+
+    #[test]
+    fn many_changes_are_all_reported() {
+        let before = project(vec![
+            direct("express", "4.18.2"),
+            direct("request", "2.88.2"),
+            direct("moment", "2.30.1"),
+        ]);
+        let now = project(vec![
+            direct("express", "5.1.0"),
+            direct("axios", "1.7.0"),
+            direct("dayjs", "1.11.0"),
+        ]);
+
+        let kinds: Vec<_> = since(&before, &now).iter().map(Plot::kind).collect();
+
+        assert_eq!(
+            kinds,
+            [
+                Kind::NewArrival,
+                Kind::NewArrival,
+                Kind::Recast,
+                Kind::WrittenOut,
+                Kind::WrittenOut
+            ]
+        );
+    }
+
+    #[test]
     fn every_plot_offers_exactly_the_placeholders_its_kind_declares() {
         let plots = [
             Plot::Entourage {
@@ -739,6 +922,19 @@ mod tests {
             Plot::NightVisitor {
                 packages: 1,
                 example: String::new(),
+            },
+            Plot::NewArrival {
+                name: String::new(),
+                version: String::new(),
+            },
+            Plot::WrittenOut {
+                name: String::new(),
+                version: String::new(),
+            },
+            Plot::Recast {
+                name: String::new(),
+                from: String::new(),
+                to: String::new(),
             },
         ];
 
