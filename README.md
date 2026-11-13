@@ -21,12 +21,25 @@ It is a toy. It is also, by accident, a readable summary of what is rotting in y
 ## Status
 
 Early. It reads npm's `package-lock.json` (npm 7 or newer) and pnpm's `pnpm-lock.yaml` (pnpm 9
-or newer) and prints an episode. There are no
-released binaries yet, so it is built from source with a current Rust toolchain:
+or newer) and prints an episode.
+
+## Install
 
 ```bash
-cargo install --git https://github.com/ryckakas/dependency-drama
+npx dependency-drama                              # run once, nothing installed
+brew install ryckakas/tap/dependency-drama        # macOS and Linux
+cargo install dependency-drama --locked           # from source, Rust 1.100 or newer
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/ryckakas/dependency-drama/releases/latest/download/dependency-drama-installer.sh | sh
 ```
+
+On Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/ryckakas/dependency-drama/releases/latest/download/dependency-drama-installer.ps1 | iex"
+```
+
+Every release also has archives for each platform, with checksums, on the
+[releases page](https://github.com/ryckakas/dependency-drama/releases).
 
 ## Usage
 
@@ -43,7 +56,7 @@ dependency-drama --base ../before  # also tell what changed since that state
 
 The action writes the episode to the job summary of every run. On a pull request that changes
 the lockfile it also posts the episode as one comment, including what the pull request did,
-and updates that comment on later pushes. It needs the first release, which is not out yet.
+and updates that comment on later pushes.
 
 ```yaml
 on: pull_request
