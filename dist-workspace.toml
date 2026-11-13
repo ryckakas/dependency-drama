@@ -15,7 +15,10 @@ installers = ["shell", "powershell", "homebrew", "npm"]
 tap = "ryckakas/homebrew-tap"
 # npm is published by publish-npm.yml instead: npm wants `npm stage publish` from npm 11.15 or
 # newer, and dist's npm job runs `npm publish` on Node 20. dist still builds the npm package.
-publish-jobs = ["homebrew"]
+publish-jobs = ["homebrew", "./publish-crates"]
+# crates.io trusted publishing needs only an identity token; dist's default for a custom publish
+# job adds packages: write, which this one has no use for.
+github-custom-job-permissions = { "publish-crates" = { contents = "read", id-token = "write" } }
 # A published shrinkwrap makes npm materialise the generated package's whole dependency tree
 # for consumers, dev entries included. Without it, npm resolves the real dependency normally.
 npm-shrinkwrap = false
@@ -39,10 +42,11 @@ targets = [
 [dist.github-custom-runners]
 aarch64-apple-darwin = "macos-15"
 
-# The commits behind the tags dist 0.33.0 uses, so a moved tag cannot change what the release
-# runs. Upgrading dist can change those tags: re-pin to the new ones, then run `dist generate`.
+# The commits release.yml runs, so a moved tag cannot change what the release runs. `dist
+# generate` writes these over release.yml, so a Dependabot bump of release.yml belongs here too,
+# or the next generate undoes it.
 [dist.github-action-commits]
-"actions/checkout" = "d23441a48e516b6c34aea4fa41551a30e30af803"          # v6.1.0
-"actions/download-artifact" = "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c" # v8.0.1
-"actions/setup-node" = "249970729cb0ef3589644e2896645e5dc5ba9c38"        # v6.5.0
-"actions/upload-artifact" = "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"   # v7.0.1
+"actions/checkout" = "3d3c42e5aac5ba805825da76410c181273ba90b1"          # v7.0.1
+"actions/download-artifact" = "9000827ccba6bdab643e8b6fd33ac0654aef8333" # v8.0.2
+"actions/setup-node" = "949feb2413d6458794dcd2491c4babbbce0c15c1"        # v7.1.0
+"actions/upload-artifact" = "cf430e030ddbb5b0abf93d22962f4752f3646cd9"   # v7.0.2
