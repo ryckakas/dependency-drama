@@ -1,15 +1,15 @@
 # dependency-drama
 
-Your dependencies, narrated as a soap opera. Every line is a true fact from the lockfile.
+Deadpan jokes about your dependencies. Every line is a true fact from the lockfile.
 
 ```
 PREVIOUSLY ON shop-web…
 
-  left-pad 1.3.0 has been deprecated, and nobody has asked it to leave. The note on its door: "use String.prototype.padStart()"
-  request is deprecated and still installed. It left a note: "request has been deprecated, see https://github.com/request/request/issues/3142"
-  express 4.22.3 still thinks it is the latest. The family has not mentioned 5.3.0.
-  webpack is 1 major version behind. Nobody has told it about 5.112.2.
-  You invited 9 guests. 461 showed up.
+  left-pad is deprecated and still here. In 2016 it left npm for a few hours and builds around the world stopped. It knows what it is worth.
+  request retired in 2020 and is still installed. It was downloaded millions of times a week when it stopped. Old habits.
+  express 4.22.3 is 1 major version behind. Version 5 was about ten years in the making, so nobody here feels rushed.
+  webpack lives at 4.47.0. 5.112.2 sends postcards. They go unopened.
+  The guest list said 9 guests. The caterer counted 461.
 ```
 
 It is a toy. It is also, by accident, a readable summary of what is rotting in your `node_modules`.
@@ -31,6 +31,52 @@ dependency-drama path/to/app  # another project, or a package-lock.json
 dependency-drama --markdown   # Markdown, for a pull request comment
 dependency-drama --json       # JSON, for a tool that writes its own comment
 dependency-drama --offline    # ask the npm registry nothing
+dependency-drama --base ../before  # also tell what changed since that state
+```
+
+## GitHub Action
+
+The action writes the episode to the job summary of every run. On a pull request that changes
+`package-lock.json` it also posts the episode as one comment, including what the pull request did,
+and updates that comment on later pushes. It needs the first release, which is not out yet.
+
+```yaml
+on: pull_request
+
+permissions:
+  contents: read
+  pull-requests: write # for the comment; without it only the job summary is written
+
+jobs:
+  drama:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ryckakas/dependency-drama@v0.1.0
+```
+
+| Input | Default | |
+|---|---|---|
+| `path` | `.` | The directory that holds `package-lock.json` |
+| `version` | `latest` | The release to install |
+| `comment` | `true` | `false` keeps it to the job summary |
+| `offline` | `false` | `true` asks the npm registry nothing |
+
+A pull request from a fork gets a read-only token, so it gets the job summary and no comment.
+
+### Monorepos
+
+npm workspaces share one lockfile at the root, and the dependencies of every workspace member are
+read from it: one step, default `path`. Projects with their own lockfile in separate directories
+get one step each, and one comment each:
+
+```yaml
+      - uses: ryckakas/dependency-drama@v0.1.0
+        with:
+          path: frontend
+      - uses: ryckakas/dependency-drama@v0.1.0
+        with:
+          path: admin
 ```
 
 ## What it looks for
@@ -47,7 +93,16 @@ dependency-drama --offline    # ask the npm registry nothing
 | Collection plate | Packages asking for funding (`npm fund`) |
 | Night visitor | Packages that run a script on install |
 
-An episode has five scenes at most. The same lockfile always gives the same episode.
+With `--base`, pointing at the same project before a change (a directory or a `package-lock.json`),
+up to three more scenes follow under "Tonight":
+
+| Scene | The fact behind it |
+|---|---|
+| New arrival | A direct dependency that was not there before |
+| Written out | A direct dependency that is no longer there |
+| Recast | A direct dependency moved up a major version |
+
+An episode has five scenes at most, not counting tonight's. The same lockfile always gives the same episode.
 
 ## JSON
 
@@ -90,6 +145,12 @@ The jokes live in plain text files under [`src/lines`](src/lines), one line per 
 - Keep it deadpan and safe to paste into a work chat.
 
 A test fails if a line uses a placeholder its scene does not provide.
+[CONTRIBUTING.md](CONTRIBUTING.md) lists the placeholders of every scene.
+
+[`celebrities.txt`](src/lines/celebrities.txt) holds lines for packages most developers know by
+name (`package | scene | line`). They replace the general lines when a scene is about that
+package. They stick to public technical history that stays true whatever version is installed, and
+a line is removed without argument if the package's maintainers ask.
 
 ## License
 

@@ -2,3 +2,7 @@ A collection plate is going around on behalf of {packages}. Nobody made eye cont
 There is a tip jar out for {packages}. This project walks past it every day. (npm fund)
 Funding requests are on file from {packages}. The project changed the subject. (npm fund)
 This project has been asked for support by {packages}. It pretended to check its phone. (npm fund)
+A donation link was left by {packages}. This project has read it as decoration. (npm fund)
+The hat was passed on behalf of {packages}. It came back empty and a little surprised. (npm fund)
+Support was requested by {packages}. The project nodded warmly and kept walking. (npm fund)
+There are open funding requests from {packages}. The project says it is between budgets. (npm fund)

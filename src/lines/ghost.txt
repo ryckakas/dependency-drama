@@ -3,3 +3,6 @@
 {name} was written out of the show. It keeps turning up on set. Official statement: "{message}"
 {name} is deprecated and still installed. It left a note: "{message}"
 Everyone can still see {name} {version}, though it was deprecated. A message came through: "{message}"
+{name} {version} was deprecated and never moved out. On the fridge: "{message}"
+The credits list {name} as departed. It appears in this episode regardless. Its statement: "{message}"
+{name} is deprecated. It is also installed. Both things are true, and one of them says: "{message}"

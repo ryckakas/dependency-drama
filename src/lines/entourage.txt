@@ -3,3 +3,6 @@ The guest list said {guests}. The caterer counted {installed}.
 The household now numbers {installed}. The invitations went out to {guests}.
 Nobody remembers inviting more than {guests}, yet dinner is set for {installed}.
 {installed} packages are living in node_modules. The lease names {guests}.
+{guests} got an invitation. With everyone they brought along, the house now holds {installed}.
+The manifest names {guests}. The lockfile needed room for {installed}.
+This project asked for {guests} and is now responsible for {installed}.

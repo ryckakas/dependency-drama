@@ -1,0 +1,40 @@
+name: Drama
+
+# The project's own action, run on its own pull requests against the test fixture. It is the only
+# place the action is exercised before a release, so it builds the binary from this checkout.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  episode:
+    name: Episode
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # The comment on a pull request that changes the fixture's lockfile.
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install stable Rust
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Build this checkout's binary
+        run: cargo install --path . --locked --debug
+
+      - uses: ./
+        with:
+          path: tests/fixtures/shop-web

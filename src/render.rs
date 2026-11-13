@@ -9,13 +9,29 @@ use crate::plots::Plot;
 const HOMEPAGE: &str = env!("CARGO_PKG_REPOSITORY");
 
 pub(crate) fn terminal(episode: &Episode) -> String {
+    let (previously, tonight) = acts(episode);
     let mut text = format!("PREVIOUSLY ON {}…\n\n", episode.project);
-    for scene in &episode.scenes {
-        text.push_str("  ");
-        text.push_str(&scene.text);
-        text.push('\n');
+    for scene in previously {
+        push_line(&mut text, "  ", &scene.text);
+    }
+    if !tonight.is_empty() {
+        text.push_str("\nTONIGHT…\n\n");
+    }
+    for scene in tonight {
+        push_line(&mut text, "  ", &scene.text);
     }
     text
+}
+
+fn push_line(text: &mut String, lead: &str, line: &str) {
+    text.push_str(lead);
+    text.push_str(line);
+    text.push('\n');
+}
+
+/// What was already true, then what the change under review did.
+fn acts(episode: &Episode) -> (Vec<&Scene>, Vec<&Scene>) {
+    episode.scenes.iter().partition(|scene| !scene.is_tonight())
 }
 
 pub(crate) fn markdown(episode: &Episode) -> String {
@@ -23,10 +39,15 @@ pub(crate) fn markdown(episode: &Episode) -> String {
         "### 📺 Previously on `{}`…\n\n",
         episode.project.replace('`', "")
     );
-    for scene in &episode.scenes {
-        text.push_str("- ");
-        text.push_str(&escape(&scene.text));
-        text.push('\n');
+    let (previously, tonight) = acts(episode);
+    for scene in previously {
+        push_line(&mut text, "- ", &escape(&scene.text));
+    }
+    if !tonight.is_empty() {
+        text.push_str("\n**Tonight…**\n\n");
+    }
+    for scene in tonight {
+        push_line(&mut text, "- ", &escape(&scene.text));
     }
     text.push_str("\n<sub>Every line is a true fact from the lockfile, narrated by ");
     text.push_str("[dependency-drama](");
@@ -212,6 +233,38 @@ mod tests {
         assert_eq!(
             text,
             "PREVIOUSLY ON shop-web…\n\n  You invited 9 guests.\n  Dinner was tense.\n"
+        );
+    }
+
+    fn with_an_arrival() -> Episode {
+        let arrival = Plot::NewArrival {
+            name: "left-pad".to_owned(),
+            version: "1.3.0".to_owned(),
+        };
+        Episode {
+            project: "shop-web".to_owned(),
+            scenes: vec![
+                scene("Dinner was tense.", None),
+                scene("A stranger arrives: left-pad 1.3.0.", Some(arrival)),
+            ],
+        }
+    }
+
+    #[test]
+    fn the_terminal_tells_what_the_change_did_under_its_own_heading() {
+        assert_eq!(
+            terminal(&with_an_arrival()),
+            "PREVIOUSLY ON shop-web…\n\n  Dinner was tense.\n\nTONIGHT…\n\n  A stranger arrives: left-pad 1.3.0.\n"
+        );
+    }
+
+    #[test]
+    fn markdown_tells_what_the_change_did_under_its_own_heading() {
+        let text = markdown(&with_an_arrival());
+
+        assert!(
+            text.contains("- Dinner was tense.\n\n**Tonight…**\n\n- A stranger arrives: left-pad 1.3.0.\n\n<sub>"),
+            "{text}"
         );
     }
 

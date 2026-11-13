@@ -2,3 +2,8 @@ There are {versions} different versions of {name} in this house. None of them ac
 {name} has been cast {versions} times, in {versions} versions. The audience is expected not to notice.
 {versions} versions of {name} sit at the same table. Each believes it is the original.
 Somewhere in node_modules, {versions} versions of {name} are slowly discovering each other.
+{name} appears at {versions} different versions in the lockfile. Continuity has stopped taking notes.
+{versions} versions of {name} are installed. The disk was never asked how it feels.
+{name} is here in {versions} versions. They share a name and nothing else.
+The family tree shows {name} at {versions} versions. Holidays are complicated.
+Casting sent {versions} versions of {name}. All of them got the part.

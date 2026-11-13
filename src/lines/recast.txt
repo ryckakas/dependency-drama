@@ -1,0 +1,8 @@
+{name} returns as {to}. It was {from} when it left, and it says it has changed.
+The part of {name} is now played by {to}. Viewers who remember {from} may notice differences.
+{name} went from {from} to {to} in one commit. A major version. It will not discuss what broke.
+{name} {from} has been recast as {to}. The changelog is long, and it is waiting to be read.
+{name} came back as {to}. {from} would not recognise it.
+{name} left as {from} and came back as {to}. It had some work done.
+{name} is now {to}. The {from} years will not be discussed.
+A new major version of {name}: {to} replaces {from}. The tests will have opinions.

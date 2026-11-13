@@ -1,0 +1,39 @@
+# zizmor, run by CI's required "Workflow security" job. release.yml is written by `dist generate`,
+# so these findings are dist's template and cannot be fixed by hand; its action pins live in
+# dist-workspace.toml. Each is pinned to the line and column that was reviewed, so a regenerated
+# release.yml fails the job until every finding in it has been looked at again.
+rules:
+  # Accepted risk, and the largest: dist grants contents: write to every job, and its build jobs
+  # export GH_TOKEN, so a dependency's build script in a release build can use a write token.
+  # dist has no setting to narrow it.
+  excessive-permissions:
+    ignore:
+      - release.yml:18:3
+  # Tag names and dist's own plan output, both set only by someone who can already push. A fork's
+  # pull request runs only the plan job, with a read-only token and no secrets.
+  template-injection:
+    ignore:
+      - release.yml:80:91
+      - release.yml:131:18
+      - release.yml:141:15
+      - release.yml:145:26
+      - release.yml:145:98
+      - release.yml:198:26
+      - release.yml:248:25
+      - release.yml:279:34
+  # dist's optional build container, which none of this project's targets sets.
+  unpinned-images:
+    ignore:
+      - release.yml:111:66
+  # setup-node's cache in the npm publish job. A tag build restores only caches written on main.
+  cache-poisoning:
+    ignore:
+      - release.yml:343:9
+  # npm's token, until npm trusts this workflow over OIDC.
+  use-trusted-publishing:
+    ignore:
+      - release.yml:350:13
+  # drama.yml runs the action from its own checkout with `./`, which is the point of that workflow.
+  self-repository:
+    ignore:
+      - drama.yml:38:15

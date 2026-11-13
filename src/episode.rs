@@ -7,6 +7,8 @@ use crate::plots::{Kind, Plot};
 const SCENES: usize = 5;
 /// Without this, a project with ten deprecated packages gets an episode about nothing else.
 const SCENES_PER_KIND: usize = 2;
+/// Scenes about the change under review come on top of the five, so they never push the rest out.
+const SCENES_TONIGHT: usize = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Episode {
@@ -21,18 +23,27 @@ pub(crate) struct Scene {
     pub(crate) plot: Option<Plot>,
 }
 
+impl Scene {
+    pub(crate) fn is_tonight(&self) -> bool {
+        self.plot
+            .as_ref()
+            .is_some_and(|plot| plot.kind().is_tonight())
+    }
+}
+
 pub(crate) fn write(project: &str, mut plots: Vec<Plot>) -> Episode {
     let project = &tidy(project);
     plots.sort_by_cached_key(|plot| (Reverse(plot.juiciness()), seed(project, plot)));
     let mut cast: Vec<&Plot> = Vec::new();
     for plot in &plots {
-        if cast.len() < SCENES && has_room(&cast, plot.kind()) {
+        if has_room(&cast, plot.kind()) {
             cast.push(plot);
         }
     }
+    cast.sort_by_key(|plot| plot.kind().is_tonight());
     let mut scenes: Vec<Scene> = Vec::new();
     for plot in cast {
-        let line = pick(&lines(plot.kind()), seed(project, plot), |line| {
+        let line = pick(&lines_for(plot), seed(project, plot), |line| {
             let text = fill(line, plot);
             scenes.iter().all(|scene| scene.text != text)
         });
@@ -41,12 +52,13 @@ pub(crate) fn write(project: &str, mut plots: Vec<Plot>) -> Episode {
             plot: Some(plot.clone()),
         });
     }
-    if scenes.is_empty() {
+    if scenes.iter().all(Scene::is_tonight) {
         let quiet = lines_in(include_str!("lines/quiet.txt"));
-        scenes.push(Scene {
+        let scene = Scene {
             text: pick(&quiet, fnv1a(project), |_| true).to_owned(),
             plot: None,
-        });
+        };
+        scenes.insert(0, scene);
     }
     Episode {
         project: project.to_owned(),
@@ -56,8 +68,17 @@ pub(crate) fn write(project: &str, mut plots: Vec<Plot>) -> Episode {
 
 fn has_room(cast: &[&Plot], kind: Kind) -> bool {
     let same_kind = cast.iter().filter(|plot| plot.kind() == kind).count();
+    let same_act = cast
+        .iter()
+        .filter(|plot| plot.kind().is_tonight() == kind.is_tonight())
+        .count();
+    let act = if kind.is_tonight() {
+        SCENES_TONIGHT
+    } else {
+        SCENES
+    };
     let ambient = cast.iter().any(|plot| plot.kind().is_ambient());
-    same_kind < SCENES_PER_KIND && !(kind.is_ambient() && ambient)
+    same_act < act && same_kind < SCENES_PER_KIND && !(kind.is_ambient() && ambient)
 }
 
 /// The seeded choice, moved along to the next line the episode has not used yet.
@@ -87,6 +108,30 @@ fn tidy(text: &str) -> String {
         .join(" ")
 }
 
+/// A well-known package's own lines when it has any for this kind of scene, the general ones
+/// otherwise.
+fn lines_for(plot: &Plot) -> Vec<&'static str> {
+    let own: Vec<_> = celebrity_lines()
+        .filter(|(name, kind, _)| plot.name() == Some(name) && *kind == plot.kind().slug())
+        .map(|(_, _, line)| line)
+        .collect();
+    if own.is_empty() {
+        lines(plot.kind())
+    } else {
+        own
+    }
+}
+
+/// Rows of `package | scene | line`.
+fn celebrity_lines() -> impl Iterator<Item = (&'static str, &'static str, &'static str)> {
+    lines_in(include_str!("lines/celebrities.txt"))
+        .into_iter()
+        .filter_map(|row| {
+            let mut columns = row.splitn(3, " | ");
+            Some((columns.next()?, columns.next()?, columns.next()?))
+        })
+}
+
 fn lines(kind: Kind) -> Vec<&'static str> {
     lines_in(match kind {
         Kind::Entourage => include_str!("lines/entourage.txt"),
@@ -98,6 +143,9 @@ fn lines(kind: Kind) -> Vec<&'static str> {
         Kind::MissingPerson => include_str!("lines/missing_person.txt"),
         Kind::CollectionPlate => include_str!("lines/collection_plate.txt"),
         Kind::NightVisitor => include_str!("lines/night_visitor.txt"),
+        Kind::NewArrival => include_str!("lines/new_arrival.txt"),
+        Kind::WrittenOut => include_str!("lines/written_out.txt"),
+        Kind::Recast => include_str!("lines/recast.txt"),
     })
 }
 
@@ -121,7 +169,7 @@ fn fnv1a(text: &str) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{Episode, SCENES, fnv1a, lines, lines_in, write};
+    use super::{Episode, SCENES, SCENES_TONIGHT, celebrity_lines, fnv1a, lines, lines_in, write};
     use crate::plots::{Kind, Plot};
 
     fn ghost(name: &str, direct: bool) -> Plot {
@@ -268,6 +316,58 @@ mod tests {
         );
     }
 
+    fn arrival(name: &str) -> Plot {
+        Plot::NewArrival {
+            name: name.to_owned(),
+            version: "1.0.0".to_owned(),
+        }
+    }
+
+    #[test]
+    fn what_the_change_did_is_told_last_and_on_top_of_the_five() {
+        let mut plots = vec![arrival("left-pad")];
+        plots.extend(["a", "b"].map(|name| ghost(name, true)));
+        plots.extend(["c", "d"].map(almost_ready));
+        plots.push(Plot::Entourage {
+            direct: 4,
+            installed: 486,
+        });
+
+        let episode = write("shop-web", plots);
+
+        assert_eq!(episode.scenes.len(), SCENES + 1);
+        let tonight: Vec<_> = episode
+            .scenes
+            .iter()
+            .map(super::Scene::is_tonight)
+            .collect();
+        assert_eq!(tonight, [false, false, false, false, false, true]);
+        assert_eq!(episode.scenes[5].plot, Some(arrival("left-pad")));
+    }
+
+    #[test]
+    fn a_change_with_many_arrivals_gets_three_scenes_about_it_at_most() {
+        let mut plots: Vec<_> = ["a", "b", "c"].map(arrival).to_vec();
+        plots.extend(["d", "e"].map(|name| Plot::WrittenOut {
+            name: name.to_owned(),
+            version: "1.0.0".to_owned(),
+        }));
+
+        let episode = write("shop-web", plots);
+
+        let tonight = episode.scenes.iter().filter(|scene| scene.is_tonight());
+        assert_eq!(tonight.count(), SCENES_TONIGHT);
+    }
+
+    #[test]
+    fn a_change_to_an_otherwise_quiet_project_still_opens_with_the_quiet_line() {
+        let episode = write("calm", vec![arrival("left-pad")]);
+
+        assert_eq!(episode.scenes.len(), 2);
+        assert_eq!(episode.scenes[0].plot, None);
+        assert!(episode.scenes[1].is_tonight());
+    }
+
     #[test]
     fn two_ambient_scenes_never_share_an_episode() {
         for project in ["a", "b", "c", "d", "e", "f", "g", "h"] {
@@ -318,7 +418,7 @@ mod tests {
     fn every_kind_has_lines_and_every_line_uses_only_what_its_kind_provides() {
         for kind in Kind::ALL {
             let lines = lines(kind);
-            assert!(lines.len() >= 4, "{kind:?} has only {} lines", lines.len());
+            assert!(lines.len() >= 8, "{kind:?} has only {} lines", lines.len());
             let provided = kind.placeholders();
             let unknown: Vec<_> = lines
                 .iter()
@@ -326,6 +426,49 @@ mod tests {
                 .filter(|placeholder| !provided.contains(placeholder))
                 .collect();
             assert_eq!(unknown, Vec::<&str>::new(), "{kind:?} cannot fill these");
+        }
+    }
+
+    #[test]
+    fn a_well_known_package_gets_its_own_line() {
+        let episode = write("shop-web", vec![ghost("left-pad", true)]);
+
+        assert!(episode.scenes[0].text.contains("2016"), "{episode:?}");
+        assert!(!episode.scenes[0].text.contains('{'), "{episode:?}");
+    }
+
+    #[test]
+    fn a_well_known_package_in_a_scene_without_its_own_line_gets_a_general_one() {
+        let episode = write("shop-web", vec![almost_ready("left-pad")]);
+
+        assert!(lines(Kind::AlmostReady).iter().any(|line| {
+            line.replace("{name}", "left-pad")
+                .replace("{version}", "0.4.2")
+                == episode.scenes[0].text
+        }));
+    }
+
+    #[test]
+    fn every_row_for_a_well_known_package_names_a_kind_and_uses_only_its_placeholders() {
+        let rows = lines_in(include_str!("lines/celebrities.txt"));
+        assert_eq!(
+            celebrity_lines().count(),
+            rows.len(),
+            "a row is missing a column"
+        );
+
+        for (name, slug, line) in celebrity_lines() {
+            let kind = Kind::ALL.into_iter().find(|kind| kind.slug() == slug);
+            let kind = kind.unwrap_or_else(|| panic!("{name}: no scene is called {slug}"));
+            let unknown: Vec<_> = placeholders(line)
+                .into_iter()
+                .filter(|placeholder| !kind.placeholders().contains(placeholder))
+                .collect();
+            assert_eq!(unknown, Vec::<&str>::new(), "{name} | {slug}");
+            assert!(
+                kind.placeholders().contains(&"name"),
+                "{slug} is not about a package"
+            );
         }
     }
 

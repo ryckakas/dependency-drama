@@ -1,0 +1,144 @@
+name: Dependency Drama
+description: Deadpan jokes about a project's dependencies, as a job summary and a pull request comment
+author: ryckakas
+branding:
+  icon: tv
+  color: purple
+
+inputs:
+  path:
+    description: The project directory that holds package-lock.json. Use the action once per directory.
+    default: "."
+  version:
+    description: The release to install, such as 0.1.0. Skipped when dependency-drama is already on the PATH.
+    default: latest
+  comment:
+    description: Comment on a pull request that changes the lockfile. The job summary is written either way.
+    default: "true"
+  offline:
+    description: Ask the npm registry nothing.
+    default: "false"
+  token:
+    description: Reads the lockfile of the base commit and writes the comment, which needs pull-requests write.
+    default: ${{ github.token }}
+
+outputs:
+  changed:
+    description: Whether the pull request changed the lockfile.
+    value: ${{ steps.episode.outputs.changed }}
+
+runs:
+  using: composite
+  steps:
+    # The archive is unpacked into the runner's temp directory and called by its full path, so
+    # nothing is added to the PATH of later steps.
+    - name: Install dependency-drama
+      id: install
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        if command -v dependency-drama > /dev/null; then
+          echo "bin=$(command -v dependency-drama)" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        case "$RUNNER_OS-$RUNNER_ARCH" in
+          Linux-X64) archive="dependency-drama-x86_64-unknown-linux-musl.tar.xz" ;;
+          Linux-ARM64) archive="dependency-drama-aarch64-unknown-linux-musl.tar.xz" ;;
+          macOS-X64) archive="dependency-drama-x86_64-apple-darwin.tar.xz" ;;
+          macOS-ARM64) archive="dependency-drama-aarch64-apple-darwin.tar.xz" ;;
+          Windows-X64) archive="dependency-drama-x86_64-pc-windows-msvc.zip" ;;
+          *) echo "::error::No dependency-drama binary for $RUNNER_OS $RUNNER_ARCH"; exit 1 ;;
+        esac
+        releases="https://github.com/ryckakas/dependency-drama/releases"
+        if [ "$VERSION" = "latest" ]; then
+          url="$releases/latest/download"
+        else
+          url="$releases/download/v${VERSION#v}"
+        fi
+        home="$RUNNER_TEMP/dependency-drama/bin"
+        mkdir -p "$home"
+        cd "$home"
+        curl --proto '=https' --tlsv1.2 -fsSLO "$url/$archive" -O "$url/$archive.sha256"
+        if command -v sha256sum > /dev/null; then
+          sha256sum --check "$archive.sha256"
+        else
+          shasum --algorithm 256 --check "$archive.sha256"
+        fi
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          unzip -q -o "$archive"
+          echo "bin=$home/dependency-drama.exe" >> "$GITHUB_OUTPUT"
+        else
+          tar -xJf "$archive" --strip-components=1
+          echo "bin=$home/dependency-drama" >> "$GITHUB_OUTPUT"
+        fi
+
+    # The base lockfile comes from the API, not from git, so a shallow checkout without
+    # credentials is enough.
+    - name: Write the episode
+      id: episode
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        DRAMA: ${{ steps.install.outputs.bin }}
+        PROJECT: ${{ inputs.path }}
+        OFFLINE: ${{ inputs.offline }}
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      run: |
+        set -euo pipefail
+        work="$RUNNER_TEMP/dependency-drama"
+        mkdir -p "$work/base"
+        prefix="$(git -C "$PROJECT" rev-parse --show-prefix)"
+        arguments=("$PROJECT" --markdown)
+        if [ "$OFFLINE" = "true" ]; then
+          arguments+=(--offline)
+        fi
+
+        changed=false
+        if [ -n "$BASE_SHA" ]; then
+          if gh api "repos/$GITHUB_REPOSITORY/contents/${prefix}package-lock.json?ref=$BASE_SHA" \
+            -H "Accept: application/vnd.github.raw" \
+            > "$work/base/package-lock.json" 2> "$work/base-error"; then
+            arguments+=(--base "$work/base")
+            if ! cmp -s "$work/base/package-lock.json" "$PROJECT/package-lock.json"; then
+              changed=true
+            fi
+          elif grep -q "HTTP 404" "$work/base-error"; then
+            changed=true
+          else
+            echo "::warning::Could not read the base lockfile, so this episode leaves out what changed: $(cat "$work/base-error")"
+          fi
+        fi
+
+        "$DRAMA" "${arguments[@]}" > "$work/episode.md"
+        cat "$work/episode.md" >> "$GITHUB_STEP_SUMMARY"
+        {
+          echo "changed=$changed"
+          echo "episode=$work/episode.md"
+          echo "marker=<!-- dependency-drama:${prefix} -->"
+        } >> "$GITHUB_OUTPUT"
+
+    # One comment per project directory, found again by its marker and updated in place. A token
+    # that may not comment (a pull request from a fork) leaves the job summary and a green check.
+    - name: Comment on the pull request
+      if: ${{ inputs.comment == 'true' && steps.episode.outputs.changed == 'true' && github.event.pull_request.number }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        EPISODE: ${{ steps.episode.outputs.episode }}
+        MARKER: ${{ steps.episode.outputs.marker }}
+        PULL_REQUEST: ${{ github.event.pull_request.number }}
+      run: |
+        set -uo pipefail
+        body="$RUNNER_TEMP/dependency-drama/comment.md"
+        { cat "$EPISODE"; echo; echo "$MARKER"; } > "$body"
+        comments="repos/$GITHUB_REPOSITORY/issues/$PULL_REQUEST/comments"
+        existing="$(gh api "$comments" --paginate \
+          | jq -r --arg marker "$MARKER" '.[] | select(.body | contains($marker)) | .id' \
+          | head -n 1)"
+        if [ -n "$existing" ]; then
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$existing" -F body=@"$body" > /dev/null
+        else
+          gh api -X POST "$comments" -F body=@"$body" > /dev/null
+        fi || echo "::notice::Could not comment on the pull request (a read-only token, as on a fork). The episode is in the job summary."
