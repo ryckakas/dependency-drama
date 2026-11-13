@@ -11,7 +11,7 @@ added joke is never a breaking change.
 `dist` reads the section matching a tag and uses it as that release's notes, so an entry here is
 what a user reads on the GitHub release page.
 
-## [Unreleased]
+## [0.1.0] - 2026-11-13
 
 ### Added
 
