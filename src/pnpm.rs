@@ -4,6 +4,7 @@
 //! those two scenes.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
 use std::path::Path;
 
 use serde::Deserialize;
@@ -56,6 +57,11 @@ struct Entry {
     cpu: Option<IgnoredAny>,
 }
 
+#[derive(Deserialize)]
+struct Manifest {
+    name: Option<String>,
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 struct Snapshot {
@@ -77,9 +83,19 @@ pub(crate) fn read(file: &Path, registries: &Registries) -> Result<Project, Read
         .filter_map(|(key, entry)| package(&lockfile, registries, &direct, key, entry))
         .collect();
     Ok(Project {
-        name: lockfile::directory_name(file).unwrap_or_else(|| "this project".to_owned()),
+        name: manifest_name(file)
+            .or_else(|| lockfile::directory_name(file))
+            .unwrap_or_else(|| "this project".to_owned()),
         packages,
     })
+}
+
+/// The `name` in the `package.json` beside the lockfile, which npm copies into its own lockfile.
+/// The directory is only a fallback: a CI checkout is named after the repository, not the package.
+fn manifest_name(lockfile: &Path) -> Option<String> {
+    let text = fs::read_to_string(lockfile.with_file_name("package.json")).ok()?;
+    let manifest: Manifest = serde_json::from_str(&text).ok()?;
+    manifest.name.filter(|name| !name.trim().is_empty())
 }
 
 /// Read from the text, not the parsed document: older lockfiles write the version as a number and
@@ -233,6 +249,39 @@ mod tests {
             read_text("lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n").expect("reads");
 
         assert_eq!(project.packages, []);
+    }
+
+    /// The project's name with this `package.json` beside the lockfile, and its directory's name.
+    fn named(manifest: Option<&str>) -> (String, String) {
+        let directory = project_with(
+            "lockfileVersion: '9.0'
+importers:
+  .: {}
+",
+        );
+        if let Some(manifest) = manifest {
+            std::fs::write(directory.path().join("package.json"), manifest)
+                .expect("write manifest");
+        }
+        let project = read(
+            &directory.path().join("pnpm-lock.yaml"),
+            &Registries::default(),
+        );
+        let directory_name = directory.path().canonicalize().expect("temp dir exists");
+        let directory_name = directory_name
+            .file_name()
+            .expect("has a name")
+            .to_string_lossy();
+        (project.expect("reads").name, directory_name.into_owned())
+    }
+
+    #[test]
+    fn the_project_is_named_by_its_package_json_and_else_by_its_directory() {
+        assert_eq!(named(Some(r#"{"name": "acme"}"#)).0, "acme");
+        for manifest in [None, Some("{}"), Some(r#"{"name": " "}"#), Some("not json")] {
+            let (name, directory_name) = named(manifest);
+            assert_eq!(name, directory_name, "{manifest:?}");
+        }
     }
 
     #[test]

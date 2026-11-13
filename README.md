@@ -123,7 +123,10 @@ up to three more scenes follow under "Tonight":
 | Written out | A direct dependency that is no longer there |
 | Recast | A direct dependency moved up a major version |
 
-An episode has five scenes at most, not counting tonight's. The same lockfile always gives the same episode.
+An episode has five scenes at most, not counting tonight's. The same lockfile always gives the same
+episode for the same project name, which is the `name` in `package.json` (npm also keeps it in
+`package-lock.json`). Only a project without one is named after its directory, and that name can
+differ between a CI checkout and a local clone.
 
 ## JSON
 
